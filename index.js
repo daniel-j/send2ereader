@@ -4,6 +4,8 @@ const Koa = require('koa')
 const Router = require('@koa/router')
 const multer = require('@koa/multer')
 const logger = require('koa-logger')
+const sendfile = require('koa-sendfile')
+const mkdirp = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
 
@@ -48,6 +50,7 @@ function expireKey (key) {
   }
   return timer
 }
+
 
 const random = uniqueRandom(1000, 9999)
 
@@ -130,9 +133,9 @@ router.get('/download/:key', async ctx => {
   }
   expireKey(key)
   console.log('Sending file!')
-  ctx.set('Content-Type', 'application/epub+zip')
-  ctx.set('Content-disposition', 'attachment; filename=' + info.file.name);
-  ctx.body = fs.createReadStream(info.file.path)
+  await sendfile(ctx, info.file.path)
+  // ctx.type = 'application/epub+zip'
+  ctx.attachment(info.file.name)
 })
 
 
@@ -146,7 +149,7 @@ router.post('/upload', upload.single('file'), async ctx => {
     ctx.throw(400, 'Uploaded file does not end with .epub ' + ctx.request.file.originalname)
   }
 
-  if (!ctx.request.file) {
+  if (!ctx.request.file || ctx.request.file.size === 0) {
     ctx.throw(400, 'Invalid or no file submitted')
   }
 
@@ -183,15 +186,14 @@ router.post('/upload', upload.single('file'), async ctx => {
   info.file = {
     name: filename,
     path: data,
-    size: ctx.request.file.size,
+    // size: ctx.request.file.size,
     uploaded: new Date()
   }
   console.log(info.file)
-  ctx.set('Location', '/')
-  ctx.body = null
+  ctx.redirect('back', '/')
 })
 
-router.delete('/file/:key', ctx => {
+router.delete('/file/:key', async ctx => {
   const key = ctx.params.key
   const info = ctx.keys.get(key)
   if (!info) {
@@ -218,22 +220,24 @@ router.get('/status/:key', async ctx => {
     alive: info.alive,
     file: info.file ? {
       name: info.file.name,
-      size: info.file.size
+      // size: info.file.size
     } : null
   }
 })
 
-router.get('/', ctx => {
+router.get('/', async ctx => {
   const agent = ctx.get('user-agent')
   console.log(agent)
-  ctx.set('Content-Type', 'text/html')
-  ctx.body = fs.createReadStream(agent.includes('Kobo') ? 'download.html' : 'upload.html')
+  await sendfile(ctx, agent.includes('Kobo') ? 'download.html' : 'upload.html')
 })
 
 app.use(logger())
 app.use(router.routes())
 app.use(router.allowedMethods())
 
-app.listen(port)
-
-console.log('server is listening on port ' + port)
+fs.rmdir('uploads', {recursive: true}, (err) => {
+  if (err) throw err
+  mkdirp.sync('uploads')
+  app.listen(port)
+  console.log('server is listening on port ' + port)
+})
