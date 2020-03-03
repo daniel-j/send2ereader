@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+	<title>Send To Kobo</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+</head>
+<body>
+
+<h1>Send to Kobo</h1>
+
+<form action="/upload" method="post" enctype="multipart/form-data">
+	<input type="text" name="key" autocomplete="off" placeholder="Key" size="6" required /><br/>
+	<input type="file" name="file" accept=".epub,application/epub+zip" required /><br/>
+	<label><input type="checkbox" name="kepubify" checked /> Kepubify</label><br/>
+	<input type="submit" value="Upload" />
+</form>
+
+</body>
+</html>

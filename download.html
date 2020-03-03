@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+	<title>Send To Kobo</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<style>
+		.wrapper {
+			margin: 0 20px;
+		}
+		h1 {
+			font-weight: normal;
+			font-style: italic;
+		}
+		#key {
+			font-size: 3.5em;
+			display: block;
+			letter-spacing: 0.1em;
+			margin: 10px 0;
+		}
+		.center {
+			text-align: center;
+		}
+		#keygen, #downloadlink {
+			background: #CCC;
+			border: none;
+			color: black;
+			font-style: italic;
+			padding: 0.6em 1.3em;
+			line-height: 1.6;
+			display: inline-block;
+		}
+		#keygen:focus {
+			background: black;
+			color: white;
+		}
+		#downloads {
+			display: none;
+		}
+	</style>
+</head>
+<body>
+
+<div class="wrapper">
+	<h1 class="center">Send to Kobo</h1>
+
+	<div class="center">
+		Unique key:
+		<output id="key">- - - -</output>
+		<br/>
+		<button id="keygen">Generate new key</button>
+	</div>
+	<br/>
+	<hr/>
+	<br/>
+	<div class="center" id="downloads">
+		<a id="downloadlink"></a>
+	</div>
+</div>
+
+<script type="text/javascript">
+
+var keyOutput = document.getElementById('key')
+var keyGenBtn = document.getElementById('keygen')
+var downloads = document.getElementById('downloads')
+var downloadlink = document.getElementById('downloadlink')
+var key = null
+var pollTimer = null
+
+function xhr(url, cb) {
+	var x = new XMLHttpRequest()
+	x.onload = function () {
+		cb(x)
+	}
+	x.open('GET', url, true)
+	x.send(null)
+}
+
+function pollFile () {
+	xhr('/status/' + key, function (x) {
+		var data
+		try {
+			data = JSON.parse(x.responseText)
+		} catch (err) { }
+		if (data && data.error) {
+			if (pollTimer) clearInterval(pollTimer)
+			key = null
+			keyOutput.textContent = '- - - -'
+		}
+		if (data && data.file) {
+			downloadlink.textContent = data.file.name
+			downloads.style.display = 'block'
+		} else {
+			downloads.style.display = 'none'
+		}
+	})
+}
+
+function generateKey () {
+	keyOutput.textContent = '- - - -'
+	if (pollTimer) clearInterval(pollTimer)
+	downloads.style.display = 'none'
+	xhr('/generate', function (x) {
+		keyOutput.textContent = x.responseText
+		if (x.responseText !== 'error') {
+			key = x.responseText
+			downloadlink.href = '/download/' + key
+			if (pollTimer) clearInterval(pollTimer)
+			pollTimer = setInterval(pollFile, 5 * 1000)
+		} else {
+			key = null
+			downloadlink.href = ''
+		}
+		keyGenBtn.blur()
+	})
+}
+
+window.onload = function () {
+	keyGenBtn.onclick = generateKey
+	generateKey()
+}
+
+</script>
+</body>
+</html>
