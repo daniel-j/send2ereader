@@ -13,7 +13,7 @@
 
 	<form action="/upload" method="post" enctype="multipart/form-data">
 		<table style="margin: 0 auto;" cellpadding=10 cellspacing=0>
-			<tr><td class="right">Unique key</td><td><input type="text" name="key" id="keyinput" autocomplete="off" inputmode="numeric" pattern="\d\d\d\d" placeholder="- - - -" required /></td></tr>
+			<tr><td class="right">Unique key</td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="----" required style="text-transform: uppercase;" maxlength=4/></td></tr>
 			<tr><td class="right">EPUB file</td><td><input type="file" name="file" accept=".epub,application/epub+zip" required /></td></tr>
 			<tr><td class="right"><label for="kepubify">Kepubify</label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
 			<tr><td></td><td><input type="submit" value="Upload" /></td></tr>
@@ -21,7 +21,8 @@
 	</form>
 	<br/>
 	<div style="padding: 15px; text-align: justify;">
-		<p>Go this this page on your Kobo ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader. Your ebook will be stored on the server as long as the Kobo is viewing the unique key and is connected to wifi. It will be deleted when the key expires about 30 seconds after you close the browser/generate a new key/disable wifi on your Kobo.</p>
+		<p>Go this this page on your Kobo ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader.</p>
+		<p>Your ebook will be stored on the server as long as the Kobo is viewing the unique key and is connected to wifi. It will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your Kobo.</p>
 		<p>By using this tool you agree that the ebook you upload is processed on the server and stored for a short time.</p>
 	</div>
 	<hr/>

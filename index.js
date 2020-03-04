@@ -9,14 +9,20 @@ const mkdirp = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
 
-const expireDelay = 20
 const port = 3001
+const expireDelay = 20
 const maxFileSize = 1024 * 1024 * 400
-const keyMin = 1000
-const keyMax = 9999
 
-function random(minimum, maximum) {
-  return Math.floor((Math.random() * (maximum - minimum + 1)) + minimum)
+const keyChars = "123456789ACEFGHKLMNPRSTUVXYZ"
+const keyLength = 4
+
+function randomKey () {
+  const choices = Math.pow(keyChars.length, keyLength)
+  const rnd = Math.floor(Math.random() * choices)
+
+  return rnd.toString(keyChars.length).padStart(keyLength, '0').split('').map((chr) => {
+    return keyChars[parseInt(chr, keyChars.length)]
+  }).join('')
 }
 
 function removeKey (key) {
@@ -49,14 +55,17 @@ function expireKey (key) {
 
 const app = new Koa()
 app.context.keys = new Map()
+app.use(logger())
+
 const router = new Router()
+
 const upload = multer({
   storage: multer.diskStorage({
     destination: function (req, file, cb) {
       cb(null, 'uploads')
     },
     filename: function (req, file, cb) {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+      const uniqueSuffix = Date.now() + '-' + Math.floor(Math.random() * 1E9)
       console.log(file)
       cb(null, file.fieldname + '-' + uniqueSuffix + '.epub')
     }
@@ -66,7 +75,7 @@ const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
-    const key = req.body.key
+    const key = req.body.key.toUpperCase()
     if (!app.context.keys.has(key)) {
       console.error('FileFilter: Unknown key: ' + key)
       cb(null, false)
@@ -90,7 +99,7 @@ router.get('/generate', async ctx => {
   let key = null
   let attempts = 0
   do {
-    key = random(keyMin, keyMax).toString()
+    key = randomKey()
     console.log(attempts, ctx.keys.size, key)
     if (attempts > ctx.keys.size) {
       console.error('Can\'t generate more keys, map is full.')
@@ -113,7 +122,7 @@ router.get('/generate', async ctx => {
 })
 
 router.get('/download/:key', async ctx => {
-  const key = ctx.params.key
+  const key = ctx.params.key.toUpperCase()
   const info = ctx.keys.get(key)
   if (!info || !info.file) {
     return
@@ -129,17 +138,17 @@ router.get('/download/:key', async ctx => {
 })
 
 router.post('/upload', upload.single('file'), async ctx => {
-  const key = ctx.request.body.key
+  const key = ctx.request.body.key.toUpperCase()
 
   if (!ctx.keys.has(key)) {
     ctx.throw(400, 'Unknown key: ' + key)
   }
+  if (!ctx.request.file || ctx.request.file.size === 0) {
+    console.error(ctx.request.file)
+    ctx.throw(400, 'Invalid or no file submitted')
+  }
   if (!ctx.request.file.originalname.toLowerCase().endsWith('.epub')) {
     ctx.throw(400, 'Uploaded file does not end with .epub ' + ctx.request.file.originalname)
-  }
-
-  if (!ctx.request.file || ctx.request.file.size === 0) {
-    ctx.throw(400, 'Invalid or no file submitted')
   }
 
   let data = null
@@ -189,7 +198,7 @@ router.post('/upload', upload.single('file'), async ctx => {
 })
 
 router.delete('/file/:key', async ctx => {
-  const key = ctx.params.key
+  const key = ctx.params.key.toUpperCase()
   const info = ctx.keys.get(key)
   if (!info) {
     ctx.throw(400, 'Unknown key: ' + key)
@@ -199,7 +208,7 @@ router.delete('/file/:key', async ctx => {
 })
 
 router.get('/status/:key', async ctx => {
-  const key = ctx.params.key
+  const key = ctx.params.key.toUpperCase()
   const info = ctx.keys.get(key)
   if (!info) {
     ctx.body = {error: 'Unknown key'}
@@ -230,7 +239,7 @@ router.get('/', async ctx => {
   await sendfile(ctx, agent.includes('Kobo') ? 'download.html' : 'upload.html')
 })
 
-app.use(logger())
+
 app.use(router.routes())
 app.use(router.allowedMethods())
 

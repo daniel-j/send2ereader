@@ -9,10 +9,11 @@ h1 {
     font-style: italic;
 }
 #key {
-    font-size: 3.5em;
+    font-size: 4.5em;
     display: block;
     letter-spacing: 0.1em;
-    margin: 10px 0;
+    margin: 5px 0;
+    font-family: monospace;
 }
 .center {
     text-align: center;
@@ -41,8 +42,9 @@ h1 {
 
 
 #keyinput {
-    font-size: 3.5em;
-    width: 4em;
+    font-size: 4em;
+    width: 3.5em;
     text-align: center;
-    font-family: serif;
+    font-family: monospace;
+    letter-spacing: 0.1em;
 }
