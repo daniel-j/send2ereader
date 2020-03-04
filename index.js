@@ -14,7 +14,7 @@ const expireDelay = 30  // 30 seconds
 const maxExpireDuration = 2 * 60 * 60  // 2 hours
 const maxFileSize = 1024 * 1024 * 400  // 400 MB
 
-const keyChars = "123456789ACEFGHKLMNPRSTUVXYZ"
+const keyChars = "234689ACEFGHKLMNPRTXYZ"
 const keyLength = 4
 
 function randomKey () {
