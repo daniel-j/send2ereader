@@ -10,8 +10,9 @@ const fs = require('fs')
 const { spawn } = require('child_process')
 
 const port = 3001
-const expireDelay = 20
-const maxFileSize = 1024 * 1024 * 400
+const expireDelay = 30  // 30 seconds
+const maxExpireDuration = 2 * 60 * 60  // 2 hours
+const maxFileSize = 1024 * 1024 * 400  // 400 MB
 
 const keyChars = "123456789ACEFGHKLMNPRSTUVXYZ"
 const keyLength = 4
@@ -37,7 +38,7 @@ function removeKey (key) {
     }
     app.context.keys.delete(key)
   } else {
-    console.log('key dont exist', key)
+    console.log('Tried to remove non-existing key', key)
   }
 }
 
@@ -90,7 +91,7 @@ const upload = multer({
   }
 })
 
-router.get('/generate', async ctx => {
+router.post('/generate', async ctx => {
   const agent = ctx.get('user-agent')
   if (!agent.includes('Kobo')) {
     console.error('Non-Kobo device tried to generate a key: ' + agent)
@@ -98,25 +99,28 @@ router.get('/generate', async ctx => {
   }
   let key = null
   let attempts = 0
+  console.log('There are currently', ctx.keys.size, 'key(s) in use.')
+  console.log('Generating unique key...', agent)
   do {
     key = randomKey()
-    console.log(attempts, ctx.keys.size, key)
     if (attempts > ctx.keys.size) {
-      console.error('Can\'t generate more keys, map is full.')
+      console.error('Can\'t generate more keys, map is full.', attempts, ctx.keys.size)
       ctx.body = 'error'
       return
     }
     attempts++
   } while (ctx.keys.has(key))
 
+  console.log('Generated key ' + key + ', '+attempts+' attempt(s)')
+
   const info = {
     created: new Date(),
     agent: agent,
     file: null
   }
-  console.log(info)
   ctx.keys.set(key, info)
   expireKey(key)
+  setTimeout(removeKey, maxExpireDuration * 1000, key)
 
   ctx.body = key
 })

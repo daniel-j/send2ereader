@@ -34,17 +34,17 @@ var downloadlink = document.getElementById('downloadlink')
 var key = null
 var pollTimer = null
 
-function xhr(url, cb) {
+function xhr(method, url, cb) {
 	var x = new XMLHttpRequest()
 	x.onload = function () {
 		cb(x)
 	}
-	x.open('GET', url, true)
+	x.open(method, url, true)
 	x.send(null)
 }
 
 function pollFile () {
-	xhr('/status/' + key, function (x) {
+	xhr('GET', '/status/' + key, function (x) {
 		var data
 		try {
 			data = JSON.parse(x.responseText)
@@ -67,7 +67,7 @@ function generateKey () {
 	keyOutput.textContent = '- - - -'
 	if (pollTimer) clearInterval(pollTimer)
 	downloads.style.display = 'none'
-	xhr('/generate', function (x) {
+	xhr('POST', '/generate', function (x) {
 		keyOutput.textContent = x.responseText
 		if (x.responseText !== 'error') {
 			key = x.responseText
