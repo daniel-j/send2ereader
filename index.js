@@ -12,16 +12,11 @@ const { spawn } = require('child_process')
 const expireDelay = 20
 const port = 3001
 const maxFileSize = 1024 * 1024 * 400
+const keyMin = 1000
+const keyMax = 9999
 
-function uniqueRandom (minimum, maximum) {
-	let previousValue
-	return function random() {
-		const number = Math.floor(
-			(Math.random() * (maximum - minimum + 1)) + minimum
-		)
-		previousValue = number === previousValue && minimum !== maximum ? random() : number
-		return previousValue
-	}
+function random(minimum, maximum) {
+  return Math.floor((Math.random() * (maximum - minimum + 1)) + minimum)
 }
 
 function removeKey (key) {
@@ -52,7 +47,6 @@ function expireKey (key) {
   return timer
 }
 
-const random = uniqueRandom(1000, 9999)
 const app = new Koa()
 app.context.keys = new Map()
 const router = new Router()
@@ -96,7 +90,7 @@ router.get('/generate', async ctx => {
   let key = null
   let attempts = 0
   do {
-    key = random().toString()
+    key = random(keyMin, keyMax).toString()
     console.log(attempts, ctx.keys.size, key)
     if (attempts > ctx.keys.size) {
       console.error('Can\'t generate more keys, map is full.')
