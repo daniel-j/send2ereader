@@ -32,9 +32,11 @@ function removeKey (key) {
   if (info) {
     clearTimeout(app.context.keys.get(key).timer)
     if (info.file) {
+      console.log('Deleting file', info.file.path)
       fs.unlink(info.file.path, (err) => {
         if (err) console.error(err)
       })
+      info.file = null
     }
     app.context.keys.delete(key)
   } else {
@@ -132,7 +134,8 @@ router.get('/download/:key', async ctx => {
     return
   }
   if (info.agent !== ctx.get('user-agent')) {
-    throw new Error("User Agent doesnt match: " + info.agent + " VS " + ctx.get('user-agent'))
+    console.error("User Agent doesnt match: " + info.agent + " VS " + ctx.get('user-agent'))
+    return
   }
   expireKey(key)
   console.log('Sending file!')
