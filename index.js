@@ -11,9 +11,10 @@ const { spawn } = require('child_process')
 
 const expireDelay = 20
 const port = 3001
+const maxFileSize = 1024 * 1024 * 400
 
-const uniqueRandom = (minimum, maximum) => {
-	let previousValue;
+function uniqueRandom (minimum, maximum) {
+	let previousValue
 	return function random() {
 		const number = Math.floor(
 			(Math.random() * (maximum - minimum + 1)) + minimum
@@ -51,10 +52,9 @@ function expireKey (key) {
   return timer
 }
 
-
 const random = uniqueRandom(1000, 9999)
-
 const app = new Koa()
+app.context.keys = new Map()
 const router = new Router()
 const upload = multer({
   storage: multer.diskStorage({
@@ -68,7 +68,7 @@ const upload = multer({
     }
   }),
   limits: {
-    fileSize: 1024 * 1024 * 400,
+    fileSize: maxFileSize,
     files: 1
   },
   fileFilter: (req, file, cb) => {
@@ -86,9 +86,6 @@ const upload = multer({
     cb(null, true)
   }
 })
-
-app.context.keys = new Map()
-
 
 router.get('/generate', async ctx => {
   const agent = ctx.get('user-agent')
@@ -121,7 +118,6 @@ router.get('/generate', async ctx => {
   ctx.body = key
 })
 
-
 router.get('/download/:key', async ctx => {
   const key = ctx.params.key
   const info = ctx.keys.get(key)
@@ -137,7 +133,6 @@ router.get('/download/:key', async ctx => {
   // ctx.type = 'application/epub+zip'
   ctx.attachment(info.file.name)
 })
-
 
 router.post('/upload', upload.single('file'), async ctx => {
   const key = ctx.request.body.key
@@ -225,6 +220,10 @@ router.get('/status/:key', async ctx => {
   }
 })
 
+router.get('/style.css', async ctx => {
+  await sendfile(ctx, 'style.css')
+})
+
 router.get('/', async ctx => {
   const agent = ctx.get('user-agent')
   console.log(agent)
@@ -237,7 +236,8 @@ app.use(router.allowedMethods())
 
 fs.rmdir('uploads', {recursive: true}, (err) => {
   if (err) throw err
-  mkdirp.sync('uploads')
-  app.listen(port)
-  console.log('server is listening on port ' + port)
+  mkdirp('uploads').then (() => {
+    app.listen(port)
+    console.log('server is listening on port ' + port)
+  })
 })

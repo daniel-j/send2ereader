@@ -1,0 +1,48 @@
+
+.wrapper {
+    margin: 0 auto;
+    padding: 0 20px;
+    max-width: 600px;
+}
+h1 {
+    font-weight: normal;
+    font-style: italic;
+}
+#key {
+    font-size: 3.5em;
+    display: block;
+    letter-spacing: 0.1em;
+    margin: 10px 0;
+}
+.center {
+    text-align: center;
+}
+.right {
+    text-align: right;
+}
+#keygen, #downloadlink {
+    background: #CCC;
+    border: none;
+    color: black;
+    font-style: italic;
+    padding: 0.6em 1.3em;
+    line-height: 1.6;
+    display: inline-block;
+}
+#keygen:focus {
+    background: black;
+    color: white;
+}
+#downloads {
+    display: none;
+}
+
+
+
+
+#keyinput {
+    font-size: 3.5em;
+    width: 4em;
+    text-align: center;
+    font-family: serif;
+}
