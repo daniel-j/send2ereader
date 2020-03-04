@@ -178,6 +178,12 @@ router.post('/upload', upload.single('file'), async ctx => {
 
   expireKey(key)
   const info = ctx.keys.get(key)
+  if (info.file && info.file.path) {
+    await new Promise((resolve, reject) => fs.unlink(info.file.path, (err) => {
+      if (err) reject(err)
+      resolve()
+    }))
+  }
   info.file = {
     name: filename,
     path: data,
