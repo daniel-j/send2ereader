@@ -23,7 +23,7 @@
 	</form>
 	<div style="padding: 15px; text-align: justify;">
 		<p>Go this this page on your Kobo/Kindle ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader.</p>
-		<p>If you send an EPUB to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file it will be sent unprocessed. If you send an EPUB and check the Kepubify option it will be converted into a Kobo EPUB using Kepubify.</p>
+		<p>If you send an EPUB to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file it will be sent unprocessed. If you send an EPUB file and tick the Kepubify checkbox it will be converted into a Kobo EPUB using Kepubify. If you send a MOBI file to a Kobo device, it will not be converted.</p>
 		<p>Your ebook will be stored on the server as long as your Kobo/Kindle is viewing the unique key and is connected to wifi. It will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your ereader.</p>
 		<p>By using this tool you agree that the ebook you upload is processed on the server and stored for a short time.</p>
 	</div>
@@ -83,7 +83,7 @@ function fileinputChange () {
 		fileinfo.textContent = ''
 		return
 	}
-	fileinfo.textContent = parseInt(fileinput.files[0].size / 1024, 10) + ' kB'
+	fileinfo.textContent = Math.ceil(fileinput.files[0].size / 1024) + ' kB'
 }
 fileinput.addEventListener('change', fileinputChange, false)
 fileinputChange()
