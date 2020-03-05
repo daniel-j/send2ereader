@@ -63,7 +63,7 @@ h1 {
     opacity: 0;
     transition: opacity .5s ease-in-out;
     padding: 10px;
-    margin-top: 10px;
+    margin-top: 20px;
     border-radius: 5px;
     text-align: center;
     cursor: pointer;
