@@ -1,19 +1,27 @@
 
+body {
+    line-height: 1.3;
+    font-family: serif;
+}
+
 .wrapper {
     margin: 0 auto;
     padding: 0 20px;
     max-width: 650px;
 }
 h1 {
+    font-size: 2em;
     font-weight: normal;
     font-style: italic;
 }
 #key {
-    font-size: 4.5em;
+    font-size: 5em;
     display: block;
-    letter-spacing: 0.1em;
-    margin: 5px 0;
-    font-family: monospace;
+    letter-spacing: 0.2em;
+    margin: 10px 0;
+    font-family: sans-serif;
+    white-space: nowrap;
+    text-transform: uppercase;
 }
 .center {
     text-align: center;
@@ -29,6 +37,8 @@ h1 {
     padding: 0.6em 1.3em;
     line-height: 1.6;
     display: inline-block;
+    font-family: inherit;
+    font-size: 1.2em;
 }
 #keygen:focus {
     background: black;
@@ -47,4 +57,32 @@ h1 {
     text-align: center;
     font-family: monospace;
     letter-spacing: 0.1em;
+}
+
+#uploadstatus {
+    opacity: 0;
+    transition: opacity .5s ease-in-out;
+    padding: 10px;
+    margin-top: 10px;
+    border-radius: 5px;
+    text-align: center;
+    cursor: pointer;
+    line-height: 1.7;
+}
+
+#uploadstatus.success {
+    background-color: #DFD;
+    border: 1px solid #7F7;
+}
+
+#uploadstatus.error {
+    background-color: #FDD;
+    border: 1px solid #F77;
+}
+td.right {
+    padding: 10px;
+}
+#fileinfo {
+    font-size: 0.9em;
+    font-style: italic;
 }

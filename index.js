@@ -8,13 +8,14 @@ const sendfile = require('koa-sendfile')
 const mkdirp = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
+const { extname, basename, dirname } = require('path')
 
 const port = 3001
 const expireDelay = 30  // 30 seconds
 const maxExpireDuration = 2 * 60 * 60  // 2 hours
 const maxFileSize = 1024 * 1024 * 400  // 400 MB
 
-const keyChars = "234689ACEFGHKLMNPRTXYZ"
+const keyChars = "3469ACEGHLMNPRTY"
 const keyLength = 4
 
 function randomKey () {
@@ -56,6 +57,11 @@ function expireKey (key) {
   return timer
 }
 
+function flash (ctx, data) {
+  console.log(data)
+  ctx.cookies.set('flash', encodeURIComponent(JSON.stringify(data)), {overwrite: true, httpOnly: false})
+}
+
 const app = new Koa()
 app.context.keys = new Map()
 app.use(logger())
@@ -70,7 +76,7 @@ const upload = multer({
     filename: function (req, file, cb) {
       const uniqueSuffix = Date.now() + '-' + Math.floor(Math.random() * 1E9)
       console.log(file)
-      cb(null, file.fieldname + '-' + uniqueSuffix + '.epub')
+      cb(null, file.fieldname + '-' + uniqueSuffix + extname(file.originalname).toLowerCase())
     }
   }),
   limits: {
@@ -84,8 +90,9 @@ const upload = multer({
       cb(null, false)
       return
     }
-    if (!file.originalname.toLowerCase().endsWith('.epub')) {
-      console.error('FileFilter: Filename does not end with .epub: ' + file.originalname)
+    const nameLower = file.originalname.toLowerCase()
+    if (!nameLower.endsWith('.epub') && !nameLower.endsWith('.mobi')) {
+      console.error('FileFilter: Filename does not end with .epub or .mobi: ' + file.originalname)
       cb(null, false)
       return
     }
@@ -95,8 +102,8 @@ const upload = multer({
 
 router.post('/generate', async ctx => {
   const agent = ctx.get('user-agent')
-  if (!agent.includes('Kobo')) {
-    console.error('Non-Kobo device tried to generate a key: ' + agent)
+  if (!agent.includes('Kobo') && !agent.includes('Kindle')) {
+    console.error('Non-Kobo or Kindle device tried to generate a key: ' + agent)
     ctx.throw(403)
   }
   let key = null
@@ -122,7 +129,9 @@ router.post('/generate', async ctx => {
   }
   ctx.keys.set(key, info)
   expireKey(key)
-  setTimeout(removeKey, maxExpireDuration * 1000, key)
+  setTimeout(() => {
+    if(ctx.keys.has(key)) removeKey(key)
+  }, maxExpireDuration * 1000)
 
   ctx.body = key
 })
@@ -138,9 +147,8 @@ router.get('/download/:key', async ctx => {
     return
   }
   expireKey(key)
-  console.log('Sending file!')
+  console.log('Sending file', info.file.path)
   await sendfile(ctx, info.file.path)
-  // ctx.type = 'application/epub+zip'
   ctx.attachment(info.file.name)
 })
 
@@ -148,31 +156,85 @@ router.post('/upload', upload.single('file'), async ctx => {
   const key = ctx.request.body.key.toUpperCase()
 
   if (!ctx.keys.has(key)) {
-    ctx.throw(400, 'Unknown key: ' + key)
+    flash(ctx, {
+      message: 'Unknown key ' + key,
+      success: false
+    })
+    ctx.redirect('back', '/')
+    return
   }
   if (!ctx.request.file || ctx.request.file.size === 0) {
+    flash(ctx, {
+      message: 'Invalid file submitted',
+      success: false,
+      key: key
+    })
+    if (ctx.request.file) console.error(ctx.request.file)
+    ctx.redirect('back', '/')
+    return
+  }
+  const nameLower = ctx.request.file.originalname.toLowerCase()
+  if (!nameLower.endsWith('.epub') && !nameLower.endsWith('.mobi')) {
+    flash(ctx, {
+      message: 'Uploaded file does not end with .epub or .mobi ' + ctx.request.file.originalname,
+      success: false,
+      key: key
+    })
     console.error(ctx.request.file)
-    ctx.throw(400, 'Invalid or no file submitted')
+    ctx.redirect('back', '/')
+    return
   }
-  if (!ctx.request.file.originalname.toLowerCase().endsWith('.epub')) {
-    ctx.throw(400, 'Uploaded file does not end with .epub ' + ctx.request.file.originalname)
-  }
+
+  const info = ctx.keys.get(key)
+  expireKey(key)
 
   let data = null
   let filename = ctx.request.file.originalname
+  let conversion = null
 
-  if (ctx.request.body.kepubify) {
+  if (nameLower.endsWith('.epub') && info.agent.includes('Kindle')) {
+    // convert to .mobi
+    conversion = 'kindlegen'
+    const outname = ctx.request.file.path.replace(/\.epub$/i, '.mobi')
+    filename = filename.replace(/\.kepub\.epub$/i, '.epub').replace(/\.epub$/i, '.mobi')
+
+    data = await new Promise((resolve, reject) => {
+      const kindlegen = spawn('kindlegen', [basename(ctx.request.file.path), '-dont_append_source', '-c1', '-o', basename(outname)], {
+        stdio: 'inherit',
+        cwd: dirname(ctx.request.file.path)
+      })
+      kindlegen.once('close', (code) => {
+        fs.unlink(ctx.request.file.path, (err) => {
+          if (err) console.error(err)
+          else console.log('Remove file', ctx.request.file.path)
+        })
+        fs.unlink(ctx.request.file.path.replace(/\.epub$/i, '.mobi8'), (err) => {
+          if (err) console.error(err)
+          else console.log('Removed file', ctx.request.file.path.replace(/\.epub$/i, '.mobi8'))
+        })
+        if (code !== 0) {
+          console.warn('kindlegen error code ' + code)
+        }
+
+        resolve(outname)
+      })
+    })
+
+  } else if (nameLower.endsWith('.epub') && info.agent.includes('Kobo') && ctx.request.body.kepubify) {
+    // convert to Kobo EPUB
+    conversion = 'kepubify'
     const outname = ctx.request.file.path.replace(/\.epub$/i, '.kepub.epub')
-
     filename = filename.replace(/\.kepub\.epub$/i, '.epub').replace(/\.epub$/i, '.kepub.epub')
 
     data = await new Promise((resolve, reject) => {
-      const kepubify = spawn('kepubify', ['-v', '-u', '-o', outname, ctx.request.file.path], {
-        stdio: 'inherit'
+      const kepubify = spawn('kepubify', ['-v', '-u', '-o', basename(outname), basename(ctx.request.file.path)], {
+        stdio: 'inherit',
+        cwd: dirname(ctx.request.file.path)
       })
       kepubify.once('close', (code) => {
         fs.unlink(ctx.request.file.path, (err) => {
           if (err) console.error(err)
+          else console.log('Remove file', ctx.request.file.path)
         })
         if (code !== 0) {
           reject('kepubify error code ' + code)
@@ -183,14 +245,15 @@ router.post('/upload', upload.single('file'), async ctx => {
       })
     })
   } else {
+    // No conversion
     data = ctx.request.file.path
   }
 
   expireKey(key)
-  const info = ctx.keys.get(key)
   if (info.file && info.file.path) {
     await new Promise((resolve, reject) => fs.unlink(info.file.path, (err) => {
-      if (err) reject(err)
+      if (err) return reject(err)
+      else console.log('Removed previously uploaded file', info.file.path)
       resolve()
     }))
   }
@@ -201,6 +264,11 @@ router.post('/upload', upload.single('file'), async ctx => {
     uploaded: new Date()
   }
   console.log(info.file)
+  flash(ctx, {
+    message: 'Upload successful!<br/>'+(conversion ? ' Ebook was converted with ' + conversion + ' and sent' : ' Sent')+' to a '+(info.agent.includes('Kobo') ? 'Kobo' : 'Kindle')+' device.<br/>Filename: ' + filename,
+    success: true,
+    key: key
+  })
   ctx.redirect('back', '/')
 })
 
@@ -243,7 +311,7 @@ router.get('/style.css', async ctx => {
 router.get('/', async ctx => {
   const agent = ctx.get('user-agent')
   console.log(agent)
-  await sendfile(ctx, agent.includes('Kobo') ? 'download.html' : 'upload.html')
+  await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle')? 'download.html' : 'upload.html')
 })
 
 

@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 <head>
-	<title>Send to Kobo</title>
+	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 	<link rel="stylesheet" type="text/css" href="/style.css"/>
@@ -9,27 +9,84 @@
 <body>
 
 <div class="wrapper">
-	<h1 class="center">Send to Kobo</h1>
+	<h1 class="center">Send to Kobo/Kindle</h1>
 
 	<form action="/upload" method="post" enctype="multipart/form-data">
-		<table style="margin: 0 auto;" cellpadding=10 cellspacing=0>
-			<tr><td class="right">Unique key</td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="----" required style="text-transform: uppercase;" maxlength=4/></td></tr>
-			<tr><td class="right">EPUB file</td><td><input type="file" name="file" accept=".epub,application/epub+zip" required /></td></tr>
+		<table style="margin: 0 auto;" cellpadding=0 cellspacing=0>
+			<tr><td class="right"><label for="keyinput">Unique key</label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
+			<tr><td class="right"><label for="fileinput">EPUB/MOBI file</label></td><td><input type="file" name="file" id="fileinput" accept=".epub,.mobi,application/epub+zip,application/x-mobipocket-ebook" required /></td></tr>
+			<tr><td></td><td id="fileinfo"></td></tr>
 			<tr><td class="right"><label for="kepubify">Kepubify</label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
-			<tr><td></td><td><input type="submit" value="Upload" /></td></tr>
+			<tr><td></td><td><input type="submit" value="Upload and send" /></td></tr>
 		</table>
+		<div id="uploadstatus"></div>
 	</form>
-	<br/>
 	<div style="padding: 15px; text-align: justify;">
-		<p>Go this this page on your Kobo ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader.</p>
-		<p>Your ebook will be stored on the server as long as the Kobo is viewing the unique key and is connected to wifi. It will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your Kobo.</p>
+		<p>Go this this page on your Kobo/Kindle ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader.</p>
+		<p>If you send an EPUB to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file it will be sent unprocessed. If you send an EPUB and check the Kepubify option it will be converted into a Kobo EPUB using Kepubify.</p>
+		<p>Your ebook will be stored on the server as long as your Kobo/Kindle is viewing the unique key and is connected to wifi. It will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your ereader.</p>
 		<p>By using this tool you agree that the ebook you upload is processed on the server and stored for a short time.</p>
 	</div>
 	<hr/>
 	<div class="center">
-		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a> and <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a> | Source code on <a href="https://github.com/daniel-j/sendtokobo" target="_blank">Github</a>
+		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a> and <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a><br/>Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a>
 	</div>
 </div>
+<script>
+function getCookies() {
+  var cookieRegex = /([\w\.]+)\s*=\s*(?:"((?:\\"|[^"])*)"|(.*?))\s*(?:[;,]|$)/g
+  var cookies = {}
+  var match
+  while( (match = cookieRegex.exec(document.cookie)) !== null ) {
+    var value = match[2] || match[3]
+	cookies[match[1]] = decodeURIComponent(value)
+	try {
+		cookies[match[1]] = JSON.parse(cookies[match[1]])
+	} catch (err) {}
+  }
+  return cookies
+}
+function deleteCookie(name) {
+	document.cookie = name + "= ; expires = Thu, 01 Jan 1970 00:00:00 GMT"
+}
 
+var uploadstatus = document.getElementById('uploadstatus')
+var keyinput = document.getElementById('keyinput')
+var fileinput = document.getElementById('fileinput')
+var fileinfo = document.getElementById('fileinfo')
+
+var flash = getCookies().flash
+deleteCookie('flash')
+
+if (flash) {
+	if (flash.message) {
+		if (flash.success) {
+			uploadstatus.className = " success"
+			uploadstatus.innerHTML = flash.message
+		} else {
+			uploadstatus.className = " error"
+			uploadstatus.textContent = flash.message
+		}
+		uploadstatus.style.opacity = 1
+	}
+	keyinput.value = flash.key || ''
+}
+uploadstatus.addEventListener('click', function () {
+	uploadstatus.style.opacity = 0
+	setTimeout(function () {
+		uploadstatus.textContent = ''
+		uploadstatus.className = ''
+	}, 500)
+}, false)
+function fileinputChange () {
+	if (!fileinput.files[0]) {
+		fileinfo.textContent = ''
+		return
+	}
+	fileinfo.textContent = parseInt(fileinput.files[0].size / 1024, 10) + 'kB'
+}
+fileinput.addEventListener('change', fileinputChange, false)
+fileinputChange()
+</script>
 </body>
 </html>

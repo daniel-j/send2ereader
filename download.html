@@ -1,7 +1,7 @@
 <!doctype html>
 <html>
 <head>
-	<title>Send to Kobo</title>
+	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 	<link rel="stylesheet" type="text/css" href="/style.css"/>
@@ -9,11 +9,11 @@
 <body>
 
 <div class="wrapper">
-	<h1 class="center">Send to Kobo</h1>
+	<h1 class="center">Send to Kobo/Kindle</h1>
 
 	<div class="center">
-		Unique key:
-		<div id="key">- - - -</div>
+		<div style="font-size: 1.4em;">Unique key:</div>
+		<div id="key">––––</div>
 		<br/>
 		<button id="keygen">Generate new key</button>
 	</div>
@@ -39,6 +39,9 @@ function xhr(method, url, cb) {
 	x.onload = function () {
 		cb(x)
 	}
+	x.onerror = function () {
+		cb(x)
+	}
 	x.open(method, url, true)
 	x.send(null)
 }
@@ -48,13 +51,19 @@ function pollFile () {
 		var data
 		try {
 			data = JSON.parse(x.responseText)
-		} catch (err) { }
-		if (data && data.error) {
+		} catch (err) {
+			keyOutput.textContent = '––––'
+			key = null
+			downloads.style.display = 'none'
+			return
+		}
+		if (data.error) {
 			if (pollTimer) clearInterval(pollTimer)
 			key = null
-			keyOutput.textContent = '- - - -'
+			keyOutput.textContent = '––––'
+			downloads.style.display = 'none'
 		}
-		if (data && data.file) {
+		if (data.file) {
 			downloadlink.textContent = data.file.name
 			downloads.style.display = 'block'
 		} else {
@@ -64,17 +73,18 @@ function pollFile () {
 }
 
 function generateKey () {
-	keyOutput.textContent = '- - - -'
+	keyOutput.textContent = '––––'
 	if (pollTimer) clearInterval(pollTimer)
 	downloads.style.display = 'none'
 	xhr('POST', '/generate', function (x) {
-		keyOutput.textContent = x.responseText
-		if (x.responseText !== 'error') {
+		if (x.responseText !== 'error' && x.status === 200) {
 			key = x.responseText
+			keyOutput.textContent = key
 			downloadlink.href = '/download/' + key
 			if (pollTimer) clearInterval(pollTimer)
 			pollTimer = setInterval(pollFile, 5 * 1000)
 		} else {
+			keyOutput.textContent = '––––'
 			key = null
 			downloadlink.href = ''
 		}
