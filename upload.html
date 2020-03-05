@@ -83,7 +83,7 @@ function fileinputChange () {
 		fileinfo.textContent = ''
 		return
 	}
-	fileinfo.textContent = parseInt(fileinput.files[0].size / 1024, 10) + 'kB'
+	fileinfo.textContent = parseInt(fileinput.files[0].size / 1024, 10) + ' kB'
 }
 fileinput.addEventListener('change', fileinputChange, false)
 fileinputChange()
