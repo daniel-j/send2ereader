@@ -130,7 +130,8 @@ router.post('/generate', async ctx => {
   ctx.keys.set(key, info)
   expireKey(key)
   setTimeout(() => {
-    if(ctx.keys.has(key)) removeKey(key)
+    // remove if it is the same object
+    if(ctx.keys.get(key) === info) removeKey(key)
   }, maxExpireDuration * 1000)
 
   ctx.body = key
