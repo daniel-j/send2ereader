@@ -9,11 +9,18 @@ const mkdirp = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
 const { extname, basename, dirname } = require('path')
+const FileType = require('file-type')
 
 const port = 3001
 const expireDelay = 30  // 30 seconds
 const maxExpireDuration = 2 * 60 * 60  // 2 hours
-const maxFileSize = 1024 * 1024 * 400  // 400 MB
+const maxFileSize = 1024 * 1024 * 500  // 500 MB
+
+const TYPE_EPUB = 'application/epub+zip'
+const TYPE_MOBI = 'application/x-mobipocket-ebook'
+
+const allowedTypes = [TYPE_EPUB, TYPE_MOBI, 'application/pdf', 'application/vnd.comicbook+zip', 'application/vnd.comicbook-rar', 'text/html', 'text/plain', 'application/zip', 'application/x-rar-compressed']
+const allowedExtensions = ['epub', 'mobi', 'pdf', 'cbz', 'cbr', 'html', 'txt']
 
 const keyChars = "3469ACEGHLMNPRTY"
 const keyLength = 4
@@ -75,7 +82,6 @@ const upload = multer({
     },
     filename: function (req, file, cb) {
       const uniqueSuffix = Date.now() + '-' + Math.floor(Math.random() * 1E9)
-      console.log(file)
       cb(null, file.fieldname + '-' + uniqueSuffix + extname(file.originalname).toLowerCase())
     }
   }),
@@ -84,15 +90,15 @@ const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
+    console.log('Incoming file:', file)
     const key = req.body.key.toUpperCase()
     if (!app.context.keys.has(key)) {
       console.error('FileFilter: Unknown key: ' + key)
       cb(null, false)
       return
     }
-    const nameLower = file.originalname.toLowerCase()
-    if (!nameLower.endsWith('.epub') && !nameLower.endsWith('.mobi')) {
-      console.error('FileFilter: Filename does not end with .epub or .mobi: ' + file.originalname)
+    if (!allowedTypes.includes(file.mimetype) || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substr(1))) {
+      console.error('FileFilter: File is of an invalid type ', file)
       cb(null, false)
       return
     }
@@ -156,33 +162,56 @@ router.get('/download/:key', async ctx => {
 router.post('/upload', upload.single('file'), async ctx => {
   const key = ctx.request.body.key.toUpperCase()
 
+  if (ctx.request.file) {
+    console.log('Uploaded file:', ctx.request.file)
+  }
+
   if (!ctx.keys.has(key)) {
     flash(ctx, {
       message: 'Unknown key ' + key,
       success: false
     })
     ctx.redirect('back', '/')
+    if (ctx.request.file) {
+      fs.unlink(ctx.request.file.path, (err) => {
+        if (err) console.error(err)
+        else console.log('Removed file', ctx.request.file.path)
+      })
+    }
     return
   }
+
   if (!ctx.request.file || ctx.request.file.size === 0) {
     flash(ctx, {
       message: 'Invalid file submitted',
       success: false,
       key: key
     })
-    if (ctx.request.file) console.error(ctx.request.file)
     ctx.redirect('back', '/')
+    if (ctx.request.file) {
+      fs.unlink(ctx.request.file.path, (err) => {
+        if (err) console.error(err)
+        else console.log('Removed file', ctx.request.file.path)
+      })
+    }
     return
   }
-  const nameLower = ctx.request.file.originalname.toLowerCase()
-  if (!nameLower.endsWith('.epub') && !nameLower.endsWith('.mobi')) {
+
+  const mimetype = ctx.request.file.mimetype
+
+  const type = await FileType.fromFile(ctx.request.file.path)
+
+  if (!type || !allowedTypes.includes(type.mime)) {
     flash(ctx, {
-      message: 'Uploaded file does not end with .epub or .mobi ' + ctx.request.file.originalname,
+      message: 'Uploaded file is of an invalid type: ' + ctx.request.file.originalname + ' (' + (type? type.mime : 'unknown mimetype') + ')',
       success: false,
       key: key
     })
-    console.error(ctx.request.file)
     ctx.redirect('back', '/')
+    fs.unlink(ctx.request.file.path, (err) => {
+      if (err) console.error(err)
+      else console.log('Removed file', ctx.request.file.path)
+    })
     return
   }
 
@@ -193,7 +222,7 @@ router.post('/upload', upload.single('file'), async ctx => {
   let filename = ctx.request.file.originalname
   let conversion = null
 
-  if (nameLower.endsWith('.epub') && info.agent.includes('Kindle')) {
+  if (mimetype === TYPE_EPUB && info.agent.includes('Kindle')) {
     // convert to .mobi
     conversion = 'kindlegen'
     const outname = ctx.request.file.path.replace(/\.epub$/i, '.mobi')
@@ -207,7 +236,7 @@ router.post('/upload', upload.single('file'), async ctx => {
       kindlegen.once('close', (code) => {
         fs.unlink(ctx.request.file.path, (err) => {
           if (err) console.error(err)
-          else console.log('Remove file', ctx.request.file.path)
+          else console.log('Removed file', ctx.request.file.path)
         })
         fs.unlink(ctx.request.file.path.replace(/\.epub$/i, '.mobi8'), (err) => {
           if (err) console.error(err)
@@ -221,7 +250,7 @@ router.post('/upload', upload.single('file'), async ctx => {
       })
     })
 
-  } else if (nameLower.endsWith('.epub') && info.agent.includes('Kobo') && ctx.request.body.kepubify) {
+  } else if (mimetype === TYPE_EPUB && info.agent.includes('Kobo') && ctx.request.body.kepubify) {
     // convert to Kobo EPUB
     conversion = 'kepubify'
     const outname = ctx.request.file.path.replace(/\.epub$/i, '.kepub.epub')
@@ -235,7 +264,7 @@ router.post('/upload', upload.single('file'), async ctx => {
       kepubify.once('close', (code) => {
         fs.unlink(ctx.request.file.path, (err) => {
           if (err) console.error(err)
-          else console.log('Remove file', ctx.request.file.path)
+          else console.log('Removed file', ctx.request.file.path)
         })
         if (code !== 0) {
           reject('kepubify error code ' + code)
@@ -264,7 +293,7 @@ router.post('/upload', upload.single('file'), async ctx => {
     // size: ctx.request.file.size,
     uploaded: new Date()
   }
-  console.log(info.file)
+
   flash(ctx, {
     message: 'Upload successful!<br/>'+(conversion ? ' Ebook was converted with ' + conversion + ' and sent' : ' Sent')+' to a '+(info.agent.includes('Kobo') ? 'Kobo' : 'Kindle')+' device.<br/>Filename: ' + filename,
     success: true,

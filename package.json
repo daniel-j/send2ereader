@@ -11,6 +11,7 @@
   "dependencies": {
     "@koa/multer": "^3.0.0",
     "@koa/router": "^9.3.1",
+    "file-type": "^14.7.1",
     "koa": "^2.13.0",
     "koa-logger": "^3.2.1",
     "koa-sendfile": "^2.0.1",
