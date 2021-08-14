@@ -349,7 +349,7 @@ router.get('/', async ctx => {
 app.use(router.routes())
 app.use(router.allowedMethods())
 
-fs.rmdir('uploads', {recursive: true}, (err) => {
+fs.rm('uploads', {recursive: true}, (err) => {
   if (err) throw err
   mkdirp('uploads').then (() => {
     app.listen(port)
