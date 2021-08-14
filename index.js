@@ -108,10 +108,7 @@ const upload = multer({
 
 router.post('/generate', async ctx => {
   const agent = ctx.get('user-agent')
-  if (!agent.includes('Kobo') && !agent.includes('Kindle')) {
-    console.error('Non-Kobo or Kindle device tried to generate a key: ' + agent)
-    ctx.throw(403)
-  }
+
   let key = null
   let attempts = 0
   console.log('There are currently', ctx.keys.size, 'key(s) in use.')
