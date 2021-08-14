@@ -10,12 +10,12 @@
   "license": "MIT",
   "dependencies": {
     "@koa/multer": "^3.0.0",
-    "@koa/router": "^9.3.1",
-    "file-type": "^14.7.1",
-    "koa": "^2.13.0",
+    "@koa/router": "^10.1.0",
+    "file-type": "^16.5.3",
+    "koa": "^2.13.1",
     "koa-logger": "^3.2.1",
-    "koa-sendfile": "^2.0.1",
+    "koa-sendfile": "^3.0.0",
     "mkdirp": "^1.0.4",
-    "multer": "^1.4.2"
+    "multer": "^1.4.3"
   }
 }
