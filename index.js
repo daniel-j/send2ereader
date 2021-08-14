@@ -112,7 +112,7 @@ router.post('/generate', async ctx => {
   let key = null
   let attempts = 0
   console.log('There are currently', ctx.keys.size, 'key(s) in use.')
-  console.log('Generating unique key...', agent)
+  console.log('Generating unique key...', ctx.ip, agent)
   do {
     key = randomKey()
     if (attempts > ctx.keys.size) {
@@ -341,7 +341,7 @@ router.get('/receive', async ctx => {
 
 router.get('/', async ctx => {
   const agent = ctx.get('user-agent')
-  console.log(agent)
+  console.log(ctx.ip, agent)
   await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle')? 'download.html' : 'upload.html')
 })
 
