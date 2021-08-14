@@ -13,8 +13,8 @@ const FileType = require('file-type')
 
 const port = 3001
 const expireDelay = 30  // 30 seconds
-const maxExpireDuration = 2 * 60 * 60  // 2 hours
-const maxFileSize = 1024 * 1024 * 500  // 500 MB
+const maxExpireDuration = 1 * 60 * 60  // 1 hour
+const maxFileSize = 1024 * 1024 * 800  // 800 MB
 
 const TYPE_EPUB = 'application/epub+zip'
 const TYPE_MOBI = 'application/x-mobipocket-ebook'
@@ -295,7 +295,7 @@ router.post('/upload', upload.single('file'), async ctx => {
   }
 
   flash(ctx, {
-    message: 'Upload successful!<br/>'+(conversion ? ' Ebook was converted with ' + conversion + ' and sent' : ' Sent')+' to a '+(info.agent.includes('Kobo') ? 'Kobo' : 'Kindle')+' device.<br/>Filename: ' + filename,
+    message: 'Upload successful!<br/>'+(conversion ? ' Ebook was converted with ' + conversion + ' and sent' : ' Sent')+' to '+(info.agent.includes('Kobo') ? 'a Kobo device.' : (info.agent.includes('Kindle') ? 'a Kindle device.' : 'a device.'))+'<br/>Filename: ' + filename,
     success: true,
     key: key
   })
@@ -336,6 +336,10 @@ router.get('/status/:key', async ctx => {
 
 router.get('/style.css', async ctx => {
   await sendfile(ctx, 'style.css')
+})
+
+router.get('/receive', async ctx => {
+  await sendfile(ctx, 'download.html')
 })
 
 router.get('/', async ctx => {
