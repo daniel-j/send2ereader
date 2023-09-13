@@ -10,6 +10,7 @@ const fs = require('fs')
 const { spawn } = require('child_process')
 const { extname, basename, dirname } = require('path')
 const FileType = require('file-type')
+const ToPinyin = require("chinese-to-pinyin");
 
 const port = 3001
 const expireDelay = 30  // 30 seconds
@@ -24,6 +25,29 @@ const allowedExtensions = ['epub', 'mobi', 'pdf', 'cbz', 'cbr', 'html', 'txt']
 
 const keyChars = "3469ACEGHLMNPRTY"
 const keyLength = 4
+
+function capitalizeFirstLetter(string) {
+  return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+function romanizeChinese(filename) {
+  const splitedFilename = filename.split(".");
+  const name = splitedFilename[0];
+  const ext = splitedFilename.pop();
+
+  let pinyinNames = ToPinyin(name, {
+    KeepRest: true,
+    removeTone: true,
+  }).split(' ');
+
+  pinyinNames = pinyinNames.map(n => capitalizeFirstLetter(n));
+  let pinyinName = pinyinNames.join("").replace(/\W/g, ""); //remove punctuation
+  if (pinyinName.length > 40) {
+    pinyinName = pinyinName.substring(0, 40);
+  }
+
+  return pinyinName+'.'+ext;
+}
 
 function randomKey () {
   const choices = Math.pow(keyChars.length, keyLength)
@@ -160,6 +184,9 @@ router.post('/upload', upload.single('file'), async ctx => {
   const key = ctx.request.body.key.toUpperCase()
 
   if (ctx.request.file) {
+    ctx.request.file.originalname = romanizeChinese(
+      ctx.request.file.originalname
+    );
     console.log('Uploaded file:', ctx.request.file)
   }
 
