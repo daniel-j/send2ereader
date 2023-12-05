@@ -4,6 +4,6 @@ services:
     build:
       context: .
       dockerfile: ./Dockerfile
-    container_name: send3ereader
+    container_name: send2ereader
     ports:
       - 3001:3001
