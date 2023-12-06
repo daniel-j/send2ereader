@@ -3,8 +3,8 @@ FROM node:20
 # Create app directory
 WORKDIR /usr/src/app
 
-# Copy app files (see .dockerignore)
-COPY . ./
+# Copy files needed by npm install
+COPY package*.json ./
 
 # Install app dependencies
 RUN npm install --omit=dev
@@ -21,6 +21,9 @@ RUN wget https://archive.org/download/kindlegen2.9/kindlegen_linux_2.6_i386_v2_9
     cp kindlegen/kindlegen /usr/local/bin/kindlegen && \
     chmod +x /usr/local/bin/kindlegen && \
     rm -rf kindlegen
+
+# Copy the rest of the app files (see .dockerignore)
+COPY . ./
 
 # Create uploads directory if it doesn't exist
 RUN mkdir uploads
