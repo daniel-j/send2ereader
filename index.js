@@ -10,7 +10,7 @@ const fs = require('fs')
 const { spawn } = require('child_process')
 const { extname, basename, dirname } = require('path')
 const FileType = require('file-type')
-const ToPinyin = require("chinese-to-pinyin");
+const { transliterate } = require('transliteration')
 
 const port = 3001
 const expireDelay = 30  // 30 seconds
@@ -26,27 +26,13 @@ const allowedExtensions = ['epub', 'mobi', 'pdf', 'cbz', 'cbr', 'html', 'txt']
 const keyChars = "3469ACEGHLMNPRTY"
 const keyLength = 4
 
-function capitalizeFirstLetter(string) {
-  return string.charAt(0).toUpperCase() + string.slice(1);
-}
 
-function romanizeChinese(filename) {
-  const splitedFilename = filename.split(".");
-  const name = splitedFilename[0];
-  const ext = splitedFilename.pop();
+function doTransliterate(filename) {
+  let name = filename.split(".")
+  const ext = "." + name.splice(-1).join(".")
+  name = name.join(".")
 
-  let pinyinNames = ToPinyin(name, {
-    KeepRest: true,
-    removeTone: true,
-  }).split(' ');
-
-  pinyinNames = pinyinNames.map(n => capitalizeFirstLetter(n));
-  let pinyinName = pinyinNames.join("").replace(/\W/g, ""); //remove punctuation
-  if (pinyinName.length > 40) {
-    pinyinName = pinyinName.substring(0, 40);
-  }
-
-  return pinyinName+'.'+ext;
+  return transliterate(name) + ext
 }
 
 function randomKey () {
@@ -116,7 +102,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     // Fixes charset
     // https://github.com/expressjs/multer/issues/1104#issuecomment-1152987772
-    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
+    file.originalname = doTransliterate(Buffer.from(file.originalname, 'latin1').toString('utf8'))
 
     console.log('Incoming file:', file)
     const key = req.body.key.toUpperCase()
@@ -196,9 +182,6 @@ router.post('/upload', upload.single('file'), async ctx => {
   const key = ctx.request.body.key.toUpperCase()
 
   if (ctx.request.file) {
-    ctx.request.file.originalname = romanizeChinese(
-      ctx.request.file.originalname
-    );
     console.log('Uploaded file:', ctx.request.file)
   }
 
