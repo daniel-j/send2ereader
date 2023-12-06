@@ -4,7 +4,7 @@
 	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="/style.css"/>
+	<link rel="stylesheet" type="text/css" href="/style.css?l"/>
 </head>
 <body>
 
@@ -12,25 +12,40 @@
 	<h1 class="center">Send to Kobo/Kindle</h1>
 
 	<div class="center">
-		<div style="font-size: 1.4em;">Unique key:</div>
-		<div id="key">––––</div>
+		<div style="font-size: 1.3em;">Unique key:</div>
+		<div id="key">
+			<span id="keyoutput">––––</span>
+			<button id="keygen" title="Generate new key">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M19.146 4.854l-1.489 1.489A8 8 0 1 0 12 20a8.094 8.094 0 0 0 7.371-4.886 1 1 0 1 0-1.842-.779A6.071 6.071 0 0 1 12 18a6 6 0 1 1 4.243-10.243l-1.39 1.39a.5.5 0 0 0 .354.854H19.5A.5.5 0 0 0 20 9.5V5.207a.5.5 0 0 0-.854-.353z"/>
+				</svg>
+			</button>
+		</div>
 		<br/>
-		<button id="keygen">Generate new key</button>
 	</div>
-	<br/>
+
+	<div class="center" id="downloads">
+		<div style="font-size: 1.3em;"><em>Downloads</em></div>
+		<br/>
+		<div><a id="downloadlink"></a></div>
+		<br/>
+	</div>
 	<hr/>
 	<br/>
-	<div class="center" id="downloads">
-		<a id="downloadlink"></a>
+	<div class="center">
+		Visit this on other devices to send ebooks to this ereader:<br/><a id="siteurl">https://send.djazz.se</a><br/>
+		<br/>
+		Created by djazz. Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a><br/>
 	</div>
 </div>
 
 <script type="text/javascript">
 
-var keyOutput = document.getElementById('key')
+var keyOutput = document.getElementById('keyoutput')
 var keyGenBtn = document.getElementById('keygen')
 var downloads = document.getElementById('downloads')
 var downloadlink = document.getElementById('downloadlink')
+var siteurl = document.getElementById('siteurl')
 var key = null
 var pollTimer = null
 
@@ -96,6 +111,10 @@ window.onload = function () {
 	keyGenBtn.onclick = generateKey
 	generateKey()
 }
+
+siteurl.textContent = window.location.origin
+siteurl.href = siteurl.textContent
+siteurl.target = '_self'
 
 </script>
 </body>

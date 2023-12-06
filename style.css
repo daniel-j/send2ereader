@@ -14,14 +14,15 @@ h1 {
     font-weight: normal;
     font-style: italic;
 }
-#key {
+#keyoutput {
     font-size: 5em;
-    display: block;
+    display: inline-block;
     letter-spacing: 0.2em;
     margin: 10px 0;
-    font-family: sans-serif;
+    font-family: monospace, sans-serif;
     white-space: nowrap;
     text-transform: uppercase;
+    vertical-align: middle;
 }
 .center {
     text-align: center;
@@ -39,10 +40,22 @@ h1 {
     display: inline-block;
     font-family: inherit;
     font-size: 1.2em;
+    margin: 0 0.5em;
+    vertical-align: middle;
+}
+#keygen {
+    margin-left: 1em;
+    margin-right: -4.7em;
+    padding: 1em;
 }
 #keygen:focus {
     background: black;
     color: white;
+}
+#keygen svg {
+    display: block;
+    width: 1.5em;
+    height: 1.5em;
 }
 #downloads {
     display: none;

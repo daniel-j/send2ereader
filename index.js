@@ -97,7 +97,7 @@ const upload = multer({
       cb(null, false)
       return
     }
-    if (!allowedTypes.includes(file.mimetype) || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substr(1))) {
+    if (!allowedTypes.includes(file.mimetype) || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substring(1))) {
       console.error('FileFilter: File is of an invalid type ', file)
       cb(null, false)
       return
@@ -198,7 +198,7 @@ router.post('/upload', upload.single('file'), async ctx => {
 
   const type = await FileType.fromFile(ctx.request.file.path)
 
-  if (!type || !allowedTypes.includes(type.mime)) {
+  if ((!type || !allowedTypes.includes(type.mime)) && !allowedTypes.includes(mimetype)) {
     flash(ctx, {
       message: 'Uploaded file is of an invalid type: ' + ctx.request.file.originalname + ' (' + (type? type.mime : 'unknown mimetype') + ')',
       success: false,
