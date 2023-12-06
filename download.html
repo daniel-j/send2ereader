@@ -62,13 +62,18 @@ function xhr(method, url, cb) {
 }
 
 function pollFile () {
+	if (!key) {
+		keyOutput.textContent = '––––'
+		downloads.style.display = 'none'
+		return
+	}
 	xhr('GET', '/status/' + key, function (x) {
 		var data
 		try {
 			data = JSON.parse(x.responseText)
 		} catch (err) {
-			keyOutput.textContent = '––––'
 			key = null
+			keyOutput.textContent = '––––'
 			downloads.style.display = 'none'
 			return
 		}
@@ -99,8 +104,8 @@ function generateKey () {
 			if (pollTimer) clearInterval(pollTimer)
 			pollTimer = setInterval(pollFile, 5 * 1000)
 		} else {
-			keyOutput.textContent = '––––'
 			key = null
+			keyOutput.textContent = '––––'
 			downloadlink.href = ''
 		}
 		keyGenBtn.blur()
