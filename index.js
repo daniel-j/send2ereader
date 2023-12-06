@@ -90,6 +90,10 @@ const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
+    // Fixes charset
+    // https://github.com/expressjs/multer/issues/1104#issuecomment-1152987772
+    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
+
     console.log('Incoming file:', file)
     const key = req.body.key.toUpperCase()
     if (!app.context.keys.has(key)) {
