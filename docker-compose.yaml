@@ -1,0 +1,9 @@
+version: "3"
+services:
+  send2ereader:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: send2ereader
+    ports:
+      - 3001:3001

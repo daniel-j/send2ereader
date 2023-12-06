@@ -5,7 +5,7 @@ const Router = require('@koa/router')
 const multer = require('@koa/multer')
 const logger = require('koa-logger')
 const sendfile = require('koa-sendfile')
-const mkdirp = require('mkdirp')
+const { mkdirp } = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
 const { extname, basename, dirname } = require('path')
@@ -114,6 +114,10 @@ const upload = multer({
     files: 1
   },
   fileFilter: (req, file, cb) => {
+    // Fixes charset
+    // https://github.com/expressjs/multer/issues/1104#issuecomment-1152987772
+    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
+
     console.log('Incoming file:', file)
     const key = req.body.key.toUpperCase()
     if (!app.context.keys.has(key)) {
@@ -121,7 +125,7 @@ const upload = multer({
       cb(null, false)
       return
     }
-    if (!allowedTypes.includes(file.mimetype) || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substr(1))) {
+    if ((!allowedTypes.includes(file.mimetype) && file.mimetype != "application/octet-stream") || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substring(1))) {
       console.error('FileFilter: File is of an invalid type ', file)
       cb(null, false)
       return
@@ -175,9 +179,17 @@ router.get('/download/:key', async ctx => {
     return
   }
   expireKey(key)
-  console.log('Sending file', info.file.path)
+  // const fallback = basename(info.file.path)
+  const sanename = info.file.name.replace(/[^\.\w\-"']/g, '_')
+  console.log('Sending file', [info.file.path, info.file.name, sanename])
   await sendfile(ctx, info.file.path)
-  ctx.attachment(info.file.name)
+  if (info.agent.includes('Kindle')) {
+    // Kindle needs a safe name or it thinks it's an invalid file
+    ctx.attachment(sanename)
+  } else {
+    // Kobo always uses fallback
+    ctx.attachment(info.file.name, {fallback: sanename})
+  }
 })
 
 router.post('/upload', upload.single('file'), async ctx => {
@@ -225,7 +237,7 @@ router.post('/upload', upload.single('file'), async ctx => {
 
   const type = await FileType.fromFile(ctx.request.file.path)
 
-  if (!type || !allowedTypes.includes(type.mime)) {
+  if ((!type || !allowedTypes.includes(type.mime)) && !allowedTypes.includes(mimetype)) {
     flash(ctx, {
       message: 'Uploaded file is of an invalid type: ' + ctx.request.file.originalname + ' (' + (type? type.mime : 'unknown mimetype') + ')',
       success: false,

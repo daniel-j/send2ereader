@@ -14,14 +14,15 @@ h1 {
     font-weight: normal;
     font-style: italic;
 }
-#key {
+#keyoutput {
     font-size: 5em;
-    display: block;
+    display: inline-block;
     letter-spacing: 0.2em;
     margin: 10px 0;
-    font-family: sans-serif;
+    font-family: monospace, sans-serif;
     white-space: nowrap;
     text-transform: uppercase;
+    vertical-align: middle;
 }
 .center {
     text-align: center;
@@ -29,7 +30,7 @@ h1 {
 .right {
     text-align: right;
 }
-#keygen, #downloadlink {
+#keygen, #downloadlink, #choosebtn, input[type="submit"] {
     background: #CCC;
     border: none;
     color: black;
@@ -39,10 +40,25 @@ h1 {
     display: inline-block;
     font-family: inherit;
     font-size: 1.2em;
+    margin: 0 0.5em;
+    vertical-align: middle;
+    cursor: pointer;
+    font-weight: normal;
 }
-#keygen:focus {
+#keygen {
+    margin-left: 1em;
+    margin-right: -2em;
+    padding: 1em;
+}
+#keygen:focus, #downloadlink:focus, #choosebtn:focus, input[type="submit"]:focus,
+#keygen:active, #downloadlink:active, #choosebtn:active, input[type="submit"]:active {
     background: black;
     color: white;
+}
+#keygen svg {
+    display: block;
+    width: 1.5em;
+    height: 1.5em;
 }
 #downloads {
     display: none;
@@ -79,10 +95,20 @@ h1 {
     background-color: #FDD;
     border: 1px solid #F77;
 }
-td.right {
+td {
     padding: 10px;
 }
+
+td.aligntop {
+    vertical-align: top;
+}
+
+#fileinput {
+    display: none;
+}
+
 #fileinfo {
     font-size: 0.9em;
     font-style: italic;
+    width: 17em;
 }

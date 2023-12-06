@@ -4,7 +4,7 @@
 	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="/style.css"/>
+	<link rel="stylesheet" type="text/css" href="/style.css?o"/>
 </head>
 <body>
 
@@ -13,11 +13,10 @@
 
 	<form action="/upload" method="post" enctype="multipart/form-data">
 		<table style="margin: 0 auto;" cellpadding=0 cellspacing=0>
-			<tr><td class="right"><label for="keyinput">Unique key</label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
-			<tr><td class="right"><label for="fileinput">EPUB/MOBI file</label></td><td><input type="file" name="file" id="fileinput" accept=".epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar" required /></td></tr>
-			<tr><td></td><td id="fileinfo"></td></tr>
-			<tr><td class="right"><label for="kepubify">Kepubify</label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
-			<tr><td></td><td><input type="submit" value="Upload and send" /></td></tr>
+			<tr><td class="right"><label for="keyinput"><strong>Unique key</strong></label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
+			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar" required /><br/><br/><div id="fileinfo"></div></td></tr>
+			<tr><td class="right"><label for="kepubify"><strong>Kepubify</strong><br/><em>Kobo only</em></label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
+			<tr class="center"><td colspan="2"><input type="submit" value="Upload and send" /></td></tr>
 		</table>
 		<div id="uploadstatus"></div>
 	</form>
@@ -29,31 +28,39 @@
 	</div>
 	<hr/>
 	<div class="center">
-		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a> and <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a><br/>Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a>
+		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a> and <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a><br/>
+		Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a> - <a id="siteurl">https://send.djazz.se</span>
 	</div>
 </div>
+
 <script>
 function getCookies() {
-  var cookieRegex = /([\w\.]+)\s*=\s*(?:"((?:\\"|[^"])*)"|(.*?))\s*(?:[;,]|$)/g
-  var cookies = {}
-  var match
-  while( (match = cookieRegex.exec(document.cookie)) !== null ) {
-    var value = match[2] || match[3]
-	cookies[match[1]] = decodeURIComponent(value)
-	try {
-		cookies[match[1]] = JSON.parse(cookies[match[1]])
-	} catch (err) {}
-  }
-  return cookies
+	var cookieRegex = /([\w\.]+)\s*=\s*(?:"((?:\\"|[^"])*)"|(.*?))\s*(?:[;,]|$)/g
+	var cookies = {}
+	var match
+	while( (match = cookieRegex.exec(document.cookie)) !== null ) {
+		var value = match[2] || match[3]
+		cookies[match[1]] = decodeURIComponent(value)
+		try {
+			cookies[match[1]] = JSON.parse(cookies[match[1]])
+		} catch (err) {}
+	}
+	return cookies
 }
 function deleteCookie(name) {
 	document.cookie = name + "= ; expires = Thu, 01 Jan 1970 00:00:00 GMT"
 }
 
+
 var uploadstatus = document.getElementById('uploadstatus')
 var keyinput = document.getElementById('keyinput')
 var fileinput = document.getElementById('fileinput')
+var fileinputAccept = fileinput.accept.split(',') // cache it
 var fileinfo = document.getElementById('fileinfo')
+var siteurl = document.getElementById('siteurl')
+
+
+var isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
 var flash = getCookies().flash
 deleteCookie('flash')
@@ -78,15 +85,51 @@ uploadstatus.addEventListener('click', function () {
 		uploadstatus.className = ''
 	}, 500)
 }, false)
+
 function fileinputChange () {
-	if (!fileinput.files[0]) {
+	if (!fileinput.files[0] || fileinput.files.length === 0) {
 		fileinfo.textContent = ''
+		fileinput.value = ''
 		return
 	}
-	fileinfo.textContent = Math.ceil(fileinput.files[0].size / 1024) + ' kB'
+
+	var filename = fileinput.files[0].name
+	var type = fileinput.files[0].type
+	var found = false
+	for (var i = 0; i < fileinputAccept.length; i++) {
+		var item = fileinputAccept[i]
+		if (item.length > 1 && item[0] == '.') {
+			if (filename.toLowerCase().endsWith(item.toLowerCase())) {
+				found = true
+				break
+			}
+		} else if (type == item) {
+			found = true
+			break
+		}
+	}
+	if (!found) {
+		alert("Invalid file: " + filename + "\nPlease select another file.")
+		fileinfo.textContent = ''
+		fileinput.value = ''
+		return
+	}
+
+	fileinfo.innerHTML = filename + "<br/>Filesize: " + Math.ceil(fileinput.files[0].size / 1024) + ' kB'
 }
 fileinput.addEventListener('change', fileinputChange, false)
 fileinputChange()
+
+if (isIOS) {
+	// Can't accept .mobi files otherwise (iOS thinks it's an unknown type)
+	fileinput.accept = ''
+}
+
+siteurl.textContent = window.location.origin
+siteurl.href = siteurl.textContent
+siteurl.target = '_self'
+
+
 </script>
 </body>
 </html>
