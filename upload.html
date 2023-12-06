@@ -4,7 +4,7 @@
 	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="/style.css?n"/>
+	<link rel="stylesheet" type="text/css" href="/style.css?o"/>
 </head>
 <body>
 
@@ -13,11 +13,10 @@
 
 	<form action="/upload" method="post" enctype="multipart/form-data">
 		<table style="margin: 0 auto;" cellpadding=0 cellspacing=0>
-			<tr><td class="right"><label for="keyinput">Unique key</label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
-			<tr><td class="right"><label for="fileinput">EPUB/MOBI file</label></td><td><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar" required /></td></tr>
-			<tr><td></td><td id="fileinfo"></td></tr>
-			<tr><td class="right"><label for="kepubify">Kepubify</label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
-			<tr><td></td><td><input type="submit" value="Upload and send" /></td></tr>
+			<tr><td class="right"><label for="keyinput"><strong>Unique key</strong></label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
+			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar" required /><br/><br/><div id="fileinfo"></div></td></tr>
+			<tr><td class="right"><label for="kepubify"><strong>Kepubify</strong><br/><em>Kobo only</em></label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
+			<tr class="center"><td colspan="2"><input type="submit" value="Upload and send" /></td></tr>
 		</table>
 		<div id="uploadstatus"></div>
 	</form>
@@ -116,7 +115,7 @@ function fileinputChange () {
 		return
 	}
 
-	fileinfo.textContent = Math.ceil(fileinput.files[0].size / 1024) + ' kB'
+	fileinfo.innerHTML = filename + "<br/>Filesize: " + Math.ceil(fileinput.files[0].size / 1024) + ' kB'
 }
 fileinput.addEventListener('change', fileinputChange, false)
 fileinputChange()

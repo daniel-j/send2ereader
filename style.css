@@ -30,7 +30,7 @@ h1 {
 .right {
     text-align: right;
 }
-#keygen, #downloadlink {
+#keygen, #downloadlink, #choosebtn, input[type="submit"] {
     background: #CCC;
     border: none;
     color: black;
@@ -42,13 +42,16 @@ h1 {
     font-size: 1.2em;
     margin: 0 0.5em;
     vertical-align: middle;
+    cursor: pointer;
+    font-weight: normal;
 }
 #keygen {
     margin-left: 1em;
     margin-right: -2em;
     padding: 1em;
 }
-#keygen:focus {
+#keygen:focus, #downloadlink:focus, #choosebtn:focus, input[type="submit"]:focus,
+#keygen:active, #downloadlink:active, #choosebtn:active, input[type="submit"]:active {
     background: black;
     color: white;
 }
@@ -92,10 +95,20 @@ h1 {
     background-color: #FDD;
     border: 1px solid #F77;
 }
-td.right {
+td {
     padding: 10px;
 }
+
+td.aligntop {
+    vertical-align: top;
+}
+
+#fileinput {
+    display: none;
+}
+
 #fileinfo {
     font-size: 0.9em;
     font-style: italic;
+    width: 17em;
 }
