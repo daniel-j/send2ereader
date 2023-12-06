@@ -94,28 +94,26 @@ function fileinputChange () {
 		return
 	}
 
-	if (fileinput.accept == '') {
-		var filename = fileinput.files[0].name
-		var type = fileinput.files[0].type
-		var found = false
-		for (var i = 0; i < fileinputAccept.length; i++) {
-			var item = fileinputAccept[i]
-			if (item.length > 1 && item[0] == '.') {
-				if (filename.toLowerCase().endsWith(item.toLowerCase())) {
-					found = true
-					break
-				}
-			} else if (type == item) {
+	var filename = fileinput.files[0].name
+	var type = fileinput.files[0].type
+	var found = false
+	for (var i = 0; i < fileinputAccept.length; i++) {
+		var item = fileinputAccept[i]
+		if (item.length > 1 && item[0] == '.') {
+			if (filename.toLowerCase().endsWith(item.toLowerCase())) {
 				found = true
 				break
 			}
+		} else if (type == item) {
+			found = true
+			break
 		}
-		if (!found) {
-			fileinfo.textContent = ''
-			fileinput.value = ''
-			alert("Invalid file: " + filename)
-			return
-		}
+	}
+	if (!found) {
+		alert("Invalid file: " + filename + "\nPlease select another file.")
+		fileinfo.textContent = ''
+		fileinput.value = ''
+		return
 	}
 
 	fileinfo.textContent = Math.ceil(fileinput.files[0].size / 1024) + ' kB'
