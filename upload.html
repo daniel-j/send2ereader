@@ -29,7 +29,8 @@
 	</div>
 	<hr/>
 	<div class="center">
-		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a> and <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a><br/>Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a>
+		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a> and <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a><br/>
+		Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a> - <a id="siteurl">https://send.djazz.se</span>
 	</div>
 </div>
 <script>
@@ -54,6 +55,7 @@ var uploadstatus = document.getElementById('uploadstatus')
 var keyinput = document.getElementById('keyinput')
 var fileinput = document.getElementById('fileinput')
 var fileinfo = document.getElementById('fileinfo')
+var siteurl = document.getElementById('siteurl')
 
 var flash = getCookies().flash
 deleteCookie('flash')
@@ -87,6 +89,11 @@ function fileinputChange () {
 }
 fileinput.addEventListener('change', fileinputChange, false)
 fileinputChange()
+
+siteurl.textContent = window.location.href
+siteurl.href = siteurl.textContent
+siteurl.target = '_self'
+
 </script>
 </body>
 </html>
