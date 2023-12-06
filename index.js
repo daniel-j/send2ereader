@@ -155,9 +155,17 @@ router.get('/download/:key', async ctx => {
     return
   }
   expireKey(key)
-  console.log('Sending file', info.file.path)
+  // const fallback = basename(info.file.path)
+  const sanename = info.file.name.replace(/[^\.\w\-"']/g, '_')
+  console.log('Sending file', [info.file.path, info.file.name, sanename])
   await sendfile(ctx, info.file.path)
-  ctx.attachment(info.file.name)
+  if (info.agent.includes('Kindle')) {
+    // Kindle needs a safe name or it thinks it's an invalid file
+    ctx.attachment(sanename)
+  } else {
+    // Kobo always uses fallback
+    ctx.attachment(info.file.name, {fallback: sanename})
+  }
 })
 
 router.post('/upload', upload.single('file'), async ctx => {
