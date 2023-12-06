@@ -10,6 +10,7 @@ const fs = require('fs')
 const { spawn } = require('child_process')
 const { extname, basename, dirname } = require('path')
 const FileType = require('file-type')
+const { transliterate } = require('transliteration')
 
 const port = 3001
 const expireDelay = 30  // 30 seconds
@@ -24,6 +25,15 @@ const allowedExtensions = ['epub', 'mobi', 'pdf', 'cbz', 'cbr', 'html', 'txt']
 
 const keyChars = "3469ACEGHLMNPRTY"
 const keyLength = 4
+
+
+function doTransliterate(filename) {
+  let name = filename.split(".")
+  const ext = "." + name.splice(-1).join(".")
+  name = name.join(".")
+
+  return transliterate(name) + ext
+}
 
 function randomKey () {
   const choices = Math.pow(keyChars.length, keyLength)
@@ -92,7 +102,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     // Fixes charset
     // https://github.com/expressjs/multer/issues/1104#issuecomment-1152987772
-    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
+    file.originalname = doTransliterate(Buffer.from(file.originalname, 'latin1').toString('utf8'))
 
     console.log('Incoming file:', file)
     const key = req.body.key.toUpperCase()

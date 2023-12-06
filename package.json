@@ -16,6 +16,7 @@
     "koa-logger": "^3.2.1",
     "koa-sendfile": "^3.0.0",
     "mkdirp": "^3.0.1",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "transliteration": "^2.3.5"
   }
 }
