@@ -101,7 +101,7 @@ const upload = multer({
       cb(null, false)
       return
     }
-    if (!allowedTypes.includes(file.mimetype) || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substring(1))) {
+    if ((!allowedTypes.includes(file.mimetype) && file.mimetype != "application/octet-stream") || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substring(1))) {
       console.error('FileFilter: File is of an invalid type ', file)
       cb(null, false)
       return
