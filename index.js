@@ -166,7 +166,7 @@ router.get('/download/:key', async ctx => {
   }
   expireKey(key)
   // const fallback = basename(info.file.path)
-  const sanename = info.file.name.replace(/[^\.\w\-"']/g, '_')
+  const sanename = info.file.name.replace(/[^\.\w\-"'\(\)]/g, '_')
   console.log('Sending file', [info.file.path, info.file.name, sanename])
   await sendfile(ctx, info.file.path)
   if (info.agent.includes('Kindle')) {
