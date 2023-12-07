@@ -4,7 +4,8 @@
 	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="/style.css?o"/>
+	<link rel="stylesheet" type="text/css" href="./style.css?s"/>
+	<script src="./common.js?a"></script>
 </head>
 <body>
 
@@ -21,13 +22,15 @@
 				</svg>
 			</button>
 		</div>
-		<br/>
 	</div>
 
-	<div class="center" id="downloads">
-		<div style="font-size: 1.3em;"><em>Downloads</em></div>
-		<br/>
-		<div><a id="downloadlink"></a></div>
+	<div class="center">
+		<div id="downloads">
+			<br/>
+			<div style="font-size: 1.3em;"><em>Downloads</em></div>
+			<a id="downloadlink" class="downloadlink"></a>
+		</div>
+		<div id="urls"></div>
 		<br/>
 	</div>
 	<hr/>
@@ -39,27 +42,18 @@
 	</div>
 </div>
 
+<div id="logs"></div>
+
 <script type="text/javascript">
 
 var keyOutput = document.getElementById('keyoutput')
 var keyGenBtn = document.getElementById('keygen')
 var downloads = document.getElementById('downloads')
 var downloadlink = document.getElementById('downloadlink')
+var urlsnode = document.getElementById('urls')
 var siteurl = document.getElementById('siteurl')
 var key = null
 var pollTimer = null
-
-function xhr(method, url, cb) {
-	var x = new XMLHttpRequest()
-	x.onload = function () {
-		cb(x)
-	}
-	x.onerror = function () {
-		cb(x)
-	}
-	x.open(method, url, true)
-	x.send(null)
-}
 
 function pollFile () {
 	if (!key) {
@@ -67,7 +61,7 @@ function pollFile () {
 		downloads.style.display = 'none'
 		return
 	}
-	xhr('GET', '/status/' + key, function (x) {
+	xhr('GET', './status/' + key, function (x) {
 		var data
 		try {
 			data = JSON.parse(x.responseText)
@@ -83,11 +77,28 @@ function pollFile () {
 			keyOutput.textContent = '––––'
 			downloads.style.display = 'none'
 		}
+		var urls = data.urls && data.urls.length > 0 ? data.urls : null
+		if (data.file || urls) {
+		} else {
+		}
 		if (data.file) {
-			downloadlink.textContent = data.file.name
 			downloads.style.display = 'block'
+			downloadlink.textContent = data.file.name
 		} else {
 			downloads.style.display = 'none'
+		}
+		if (urls) {
+			urlsnode.innerHTML = '<br/><div style="font-size: 1.3em;"><em>Urls</em></div>'
+			urls.forEach(function (url) {
+				var urllink = document.createElement("a")
+				urllink.href = url
+				urllink.target = '_blank'
+				urllink.textContent = url
+				urllink.className = "downloadlink"
+				var div = document.createElement('div')
+				div.appendChild(urllink)
+				urlsnode.appendChild(div)
+			})
 		}
 	})
 }
@@ -96,11 +107,11 @@ function generateKey () {
 	keyOutput.textContent = '––––'
 	if (pollTimer) clearInterval(pollTimer)
 	downloads.style.display = 'none'
-	xhr('POST', '/generate', function (x) {
+	xhr('POST', './generate', function (x) {
 		if (x.responseText !== 'error' && x.status === 200) {
 			key = x.responseText
 			keyOutput.textContent = key
-			downloadlink.href = '/download/' + key
+			downloadlink.href = './download/' + key
 			if (pollTimer) clearInterval(pollTimer)
 			pollTimer = setInterval(pollFile, 5 * 1000)
 		} else {
@@ -117,7 +128,7 @@ window.onload = function () {
 	generateKey()
 }
 
-siteurl.textContent = window.location.origin
+siteurl.textContent = window.location.href
 siteurl.href = siteurl.textContent
 siteurl.target = '_self'
 

@@ -4,17 +4,19 @@
 	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="/style.css?o"/>
+	<link rel="stylesheet" type="text/css" href="./style.css?o"/>
+	<script src="./common.js"></script>
 </head>
 <body>
 
 <div class="wrapper">
 	<h1 class="center">Send to Kobo/Kindle</h1>
 
-	<form action="/upload" method="post" enctype="multipart/form-data">
+	<form action="./upload" method="post" enctype="multipart/form-data">
 		<table style="margin: 0 auto;" cellpadding=0 cellspacing=0>
 			<tr><td class="right"><label for="keyinput"><strong>Unique key</strong></label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
-			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar" required /><br/><br/><div id="fileinfo"></div></td></tr>
+			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar"/><br/><br/><div id="fileinfo"></div></td></tr>
+			<tr><td class="right"><label for="urlinput"><strong>Send url</strong></label></td><td><input type="url" name="url" id="urlinput" autocomplete="off" style="width: 100%"></td></tr>
 			<tr><td class="right"><label for="kepubify"><strong>Kepubify</strong><br/><em>Kobo only</em></label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
 			<tr class="center"><td colspan="2"><input type="submit" value="Upload and send" /></td></tr>
 		</table>
@@ -33,37 +35,19 @@
 	</div>
 </div>
 
+<div id="logs"></div>
+
 <script>
-function getCookies() {
-	var cookieRegex = /([\w\.]+)\s*=\s*(?:"((?:\\"|[^"])*)"|(.*?))\s*(?:[;,]|$)/g
-	var cookies = {}
-	var match
-	while( (match = cookieRegex.exec(document.cookie)) !== null ) {
-		var value = match[2] || match[3]
-		cookies[match[1]] = decodeURIComponent(value)
-		try {
-			cookies[match[1]] = JSON.parse(cookies[match[1]])
-		} catch (err) {}
-	}
-	return cookies
-}
-function deleteCookie(name) {
-	document.cookie = name + "= ; expires = Thu, 01 Jan 1970 00:00:00 GMT"
-}
-
-
 var uploadstatus = document.getElementById('uploadstatus')
 var keyinput = document.getElementById('keyinput')
 var fileinput = document.getElementById('fileinput')
 var fileinputAccept = fileinput.accept.split(',') // cache it
 var fileinfo = document.getElementById('fileinfo')
+var urlinput = document.getElementById('urlinput')
 var siteurl = document.getElementById('siteurl')
 
-
-var isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-
 var flash = getCookies().flash
-deleteCookie('flash')
+// deleteCookie('flash')
 
 if (flash) {
 	if (flash.message) {
@@ -77,6 +61,7 @@ if (flash) {
 		uploadstatus.style.opacity = 1
 	}
 	keyinput.value = flash.key || ''
+	urlinput.value = flash.url || ''
 }
 uploadstatus.addEventListener('click', function () {
 	uploadstatus.style.opacity = 0
@@ -84,6 +69,10 @@ uploadstatus.addEventListener('click', function () {
 		uploadstatus.textContent = ''
 		uploadstatus.className = ''
 	}, 500)
+}, false)
+
+document.body.addEventListener("drop", function () {
+	log("file dropped")
 }, false)
 
 function fileinputChange () {
@@ -117,6 +106,7 @@ function fileinputChange () {
 
 	fileinfo.innerHTML = filename + "<br/>Filesize: " + Math.ceil(fileinput.files[0].size / 1024) + ' kB'
 }
+
 fileinput.addEventListener('change', fileinputChange, false)
 fileinputChange()
 
@@ -125,10 +115,9 @@ if (isIOS) {
 	fileinput.accept = ''
 }
 
-siteurl.textContent = window.location.origin
+siteurl.textContent = window.location.href
 siteurl.href = siteurl.textContent
 siteurl.target = '_self'
-
 
 </script>
 </body>

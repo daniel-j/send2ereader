@@ -30,7 +30,7 @@ h1 {
 .right {
     text-align: right;
 }
-#keygen, #downloadlink, #choosebtn, input[type="submit"] {
+#keygen, .downloadlink, #choosebtn, input[type="submit"] {
     background: #CCC;
     border: none;
     color: black;
@@ -60,6 +60,9 @@ h1 {
     width: 1.5em;
     height: 1.5em;
 }
+.downloadlink {
+    margin: 0.5em;
+}
 #downloads {
     display: none;
 }
@@ -73,6 +76,13 @@ h1 {
     text-align: center;
     font-family: monospace;
     letter-spacing: 0.1em;
+}
+
+input[type="url"], input[type="text"] {
+    background: white;
+    border: 1px solid #AAA;
+    padding: 5px;
+    font-family: serif;
 }
 
 #uploadstatus {
@@ -110,5 +120,5 @@ td.aligntop {
 #fileinfo {
     font-size: 0.9em;
     font-style: italic;
-    width: 17em;
+    width: 18em;
 }
