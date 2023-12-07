@@ -232,9 +232,13 @@ router.post('/upload', upload.single('file'), async ctx => {
       return
     }
 
-    const mimetype = ctx.request.file.mimetype
+    let mimetype = ctx.request.file.mimetype
 
     const type = await FileType.fromFile(ctx.request.file.path)
+
+    if (mimetype == "application/octet-stream" && type) {
+      mimetype = type.mime
+    }
 
     if ((!type || !allowedTypes.includes(type.mime)) && !allowedTypes.includes(mimetype)) {
       flash(ctx, {
