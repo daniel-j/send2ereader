@@ -407,9 +407,6 @@ app.use(router.allowedMethods())
 
 app.use(serve("static"))
 
-app.use(mount("/node_modules/crypto-js", serve("node_modules/crypto-js")))
-
-
 fs.rm('uploads', {recursive: true}, (err) => {
   if (err) throw err
   mkdirp('uploads').then (() => {
