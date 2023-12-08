@@ -1,7 +1,7 @@
 {
-  "name": "sendtokobo",
+  "name": "send2ereader",
   "version": "1.0.0",
-  "description": "",
+  "description": "Send ebooks to Kobo/Kindle ereaders easily",
   "main": "index.js",
   "scripts": {
     "start": "node index"
