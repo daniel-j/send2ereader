@@ -240,6 +240,10 @@ router.post('/upload', upload.single('file'), async ctx => {
       mimetype = type.mime
     }
 
+    if (mimetype == "application/epub") {
+      mimetype = TYPE_EPUB
+    }
+
     if ((!type || !allowedTypes.includes(type.mime)) && !allowedTypes.includes(mimetype)) {
       flash(ctx, {
         message: 'Uploaded file is of an invalid type: ' + ctx.request.file.originalname + ' (' + (type? type.mime : 'unknown mimetype') + ')',
