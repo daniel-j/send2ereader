@@ -9,7 +9,7 @@ RUN wget https://github.com/pgaskin/kepubify/releases/download/v4.0.4/kepubify-l
     chmod +x /usr/local/bin/kepubify
 
 # Download and install kindlegen
-RUN wget https://web.archive.org/web/20150803131026/https://kindlegen.s3.amazonaws.com/kindlegen_linux_2.6_i386_v2_9.tar.gz && \
+RUN wget https://web.archive.org/web/20150803131026if_/https://kindlegen.s3.amazonaws.com/kindlegen_linux_2.6_i386_v2_9.tar.gz && \
     mkdir kindlegen && \
     tar xvf kindlegen_linux_2.6_i386_v2_9.tar.gz --directory kindlegen && \
     cp kindlegen/kindlegen /usr/local/bin/kindlegen && \
