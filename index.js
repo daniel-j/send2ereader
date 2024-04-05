@@ -52,12 +52,14 @@ function removeKey (key) {
   const info = app.context.keys.get(key)
   if (info) {
     clearTimeout(app.context.keys.get(key).timer)
-    if (info.file) {
-      console.log('Deleting file', info.file.path)
-      fs.unlink(info.file.path, (err) => {
-        if (err) console.error(err)
+    if (info.files) {
+      info.files.forEach((file) => {
+        console.log('Deleting file', file.path)
+        fs.unlink(file.path, (err) => {
+          if (err) console.error(err)
+        })
       })
-      info.file = null
+      info.files = []
     }
     app.context.keys.delete(key)
   } else {
@@ -100,7 +102,7 @@ const upload = multer({
   }),
   limits: {
     fileSize: maxFileSize,
-    files: maxFiles
+    files: maxFiles,
   },
   fileFilter: (req, file, cb) => {
     // Fixes charset
@@ -114,13 +116,19 @@ const upload = multer({
       cb(null, false)
       return
     }
-    if ((!allowedTypes.includes(file.mimetype) && file.mimetype != "application/octet-stream") || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substring(1))) {
+    if (
+      (!allowedTypes.includes(file.mimetype) &&
+        file.mimetype != 'application/octet-stream') ||
+      !allowedExtensions.includes(
+        extname(file.originalname.toLowerCase()).substring(1)
+      )
+    ) {
       console.error('FileFilter: File is of an invalid type ', file)
       cb(null, false)
       return
     }
     cb(null, true)
-  }
+  },
 })
 
 router.post('/generate', async ctx => {
@@ -145,8 +153,8 @@ router.post('/generate', async ctx => {
   const info = {
     created: new Date(),
     agent: agent,
-    file: null,
-    urls: []
+    files: [],
+    urls: [],
   }
   ctx.keys.set(key, info)
   expireKey(key)
@@ -161,7 +169,7 @@ router.post('/generate', async ctx => {
 router.get('/download/:key', async ctx => {
   const key = ctx.params.key.toUpperCase()
   const info = ctx.keys.get(key)
-  if (!info || !info.file) {
+  if (!info || !info.files) {
     return
   }
   if (info.agent !== ctx.get('user-agent')) {
@@ -170,15 +178,18 @@ router.get('/download/:key', async ctx => {
   }
   expireKey(key)
   // const fallback = basename(info.file.path)
-  const sanename = info.file.name.replace(/[^\.\w\-"'\(\)]/g, '_')
-  console.log('Sending file', [info.file.path, info.file.name, sanename])
-  await sendfile(ctx, info.file.path)
-  if (info.agent.includes('Kindle')) {
-    // Kindle needs a safe name or it thinks it's an invalid file
-    ctx.attachment(sanename)
-  } else {
-    // Kobo always uses fallback
-    ctx.attachment(info.file.name, {fallback: sanename})
+  for (file of info.files) {
+    const sanename = file.name.replace(/[^\.\w\-''\(\)]/g, '_')
+    console.log('Sending file', [file.path, file.name, sanename])
+    await sendfile(ctx, file.path)
+
+    if (info.agent.includes('Kindle')) {
+      // Kindle needs a safe name or it thinks it's an invalid file
+      ctx.attachment(sanename)
+    } else {
+      // Kobo always uses fallback
+      ctx.attachment(file.name, { fallback: sanename })
+    }
   }
 })
 
@@ -228,7 +239,7 @@ router.post('/upload', upload.array('files', maxFiles), async ctx => {
         key: key
       })
       ctx.redirect('back', '/')
-      ctx.request.file.forEach((file) => {
+      ctx.request.files.forEach((file) => {
         fs.unlink(file.path, (err) => {
           if (err) console.error(err)
           else console.log('Removed file', file.path)
@@ -325,30 +336,44 @@ router.post('/upload', upload.array('files', maxFiles), async ctx => {
 
       expireKey(key)
       if (info.file && info.file.path) {
-        await new Promise((resolve, reject) => fs.unlink(info.file.path, (err) => {
-          if (err) return reject(err)
-          else console.log('Removed previously uploaded file', info.file.path)
-          resolve()
-        }))
+        await new Promise((resolve, reject) =>
+          fs.unlink(info.file.path, (err) => {
+            if (err) return reject(err)
+            else
+              console.log('Removed previously uploaded file', info.file.path)
+            resolve()
+          })
+        )
       }
-      info.file = {
+      info.files.push({
         name: filename,
         path: data,
         // size: ctx.request.file.size,
         uploaded: new Date()
-      }
+      })
     }
   }
 
   let messages = []
   if (ctx.request.files) {
     for (file of ctx.request.files) {
-      messages.push('Upload successful! ' + (conversion ? ' Ebook was converted with ' + conversion + ' and sent' : ' Sent')+' to '+(info.agent.includes('Kobo') ? 'a Kobo device.' : (info.agent.includes('Kindle') ? 'a Kindle device.' : 'a device.')))
+      messages.push(
+        'Upload successful! ' +
+          (conversion
+            ? ' Ebook was converted with ' + conversion + ' and sent'
+            : ' Sent') +
+          ' to ' +
+          (info.agent.includes('Kobo')
+            ? 'a Kobo device.'
+            : info.agent.includes('Kindle')
+            ? 'a Kindle device.'
+            : 'a device.')
+      )
       messages.push('Filename: ' + filename)
     }
   }
   if (url) {
-    messages.push("Added url: " + url)
+    messages.push('Added url: ' + url)
   }
 
   if (messages.length === 0) {
@@ -376,7 +401,7 @@ router.delete('/file/:key', async ctx => {
   if (!info) {
     ctx.throw(400, 'Unknown key: ' + key)
   }
-  info.file = null
+  info.files = []
   ctx.body = 'ok'
 })
 
@@ -395,11 +420,11 @@ router.get('/status/:key', async ctx => {
   expireKey(key)
   ctx.body = {
     alive: info.alive,
-    file: info.file ? {
-      name: info.file.name,
+    files: info.files.map((file) => ({
+      name: file.name,
       // size: info.file.size
-    } : null,
-    urls: info.urls
+    })),
+    urls: info.urls,
   }
 })
 
@@ -412,7 +437,6 @@ router.get('/', async ctx => {
   console.log(ctx.ip, agent)
   await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle')? 'static/download.html' : 'static/upload.html')
 })
-
 
 app.use(router.routes())
 app.use(router.allowedMethods())

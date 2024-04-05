@@ -81,23 +81,34 @@ function pollFile () {
 		if (data.file || urls) {
 		} else {
 		}
-		if (data.file) {
+		if (data.files) {
 			downloads.style.display = 'block'
-			downloadlink.textContent = data.file.name
+			downloads.innerHTML = '';
+			downloads.innerHTML = '';
+			data.files.forEach(function (file) {
+			  var downloadLink = document.createElement("a");
+			  downloadLink.href = file.url;
+			  downloadLink.target = '_blank';
+			  downloadLink.textContent = file.name;
+			  downloadLink.className = "downloadlink";
+		      var div = document.createElement('div');
+			  div.appendChild(downloadLink);
+			  downloads.appendChild(div);
+			})
 		} else {
 			downloads.style.display = 'none'
 		}
 		if (urls) {
 			urlsnode.innerHTML = '<br/><div style="font-size: 1.3em;"><em>Urls</em></div>'
 			urls.forEach(function (url) {
-				var urllink = document.createElement("a")
-				urllink.href = url
-				urllink.target = '_blank'
-				urllink.textContent = url
-				urllink.className = "downloadlink"
-				var div = document.createElement('div')
-				div.appendChild(urllink)
-				urlsnode.appendChild(div)
+			  var urllink = document.createElement("a")
+			  urllink.href = url
+			  urllink.target = '_blank'
+		      urllink.textContent = url
+			  urllink.className = "downloadlink"
+			  var div = document.createElement('div')
+			  div.appendChild(urllink)
+			  urlsnode.appendChild(div)
 			})
 		}
 	})
