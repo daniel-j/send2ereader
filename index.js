@@ -6,7 +6,6 @@ const multer = require('@koa/multer')
 const logger = require('koa-logger')
 const sendfile = require('koa-sendfile')
 const serve = require('koa-static')
-const mount = require('koa-mount')
 const { mkdirp } = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
@@ -166,8 +165,9 @@ router.post('/generate', async ctx => {
   ctx.body = key
 })
 
-router.get('/download/:key', async ctx => {
+router.get('/download/:key/:filename', async ctx => {
   const key = ctx.params.key.toUpperCase()
+  const filename = ctx.params.filename
   const info = ctx.keys.get(key)
   if (!info || !info.files) {
     return
@@ -178,7 +178,11 @@ router.get('/download/:key', async ctx => {
   }
   expireKey(key)
   // const fallback = basename(info.file.path)
-  for (file of info.files) {
+  const file = info.files.find((file) => file.name === filename);
+    if (!file) {
+      console.error("File not found: " + filename);
+      return;
+    }
     const sanename = file.name.replace(/[^\.\w\-''\(\)]/g, '_')
     console.log('Sending file', [file.path, file.name, sanename])
     await sendfile(ctx, file.path)
@@ -190,7 +194,7 @@ router.get('/download/:key', async ctx => {
       // Kobo always uses fallback
       ctx.attachment(file.name, { fallback: sanename })
     }
-  }
+  
 })
 
 router.post('/upload', upload.array('files', maxFiles), async ctx => {
@@ -283,7 +287,7 @@ router.post('/upload', upload.array('files', maxFiles), async ctx => {
         const outname = file.path.replace(/\.epub$/i, '.mobi')
         filename = filename.replace(/\.kepub\.epub$/i, '.epub').replace(/\.epub$/i, '.mobi')
 
-        data = await new Promise((resolve, reject) => {
+        data = await new Promise((resolve) => {
           const kindlegen = spawn('kindlegen', [basename(file.path), '-dont_append_source', '-c1', '-o', basename(outname)], {
             stdio: 'inherit',
             cwd: dirname(file.path)

@@ -28,7 +28,6 @@
 		<div id="downloads">
 			<br/>
 			<div style="font-size: 1.3em;"><em>Downloads</em></div>
-			<a id="downloadlink" class="downloadlink"></a>
 		</div>
 		<div id="urls"></div>
 		<br/>
@@ -49,7 +48,6 @@
 var keyOutput = document.getElementById('keyoutput')
 var keyGenBtn = document.getElementById('keygen')
 var downloads = document.getElementById('downloads')
-var downloadlink = document.getElementById('downloadlink')
 var urlsnode = document.getElementById('urls')
 var siteurl = document.getElementById('siteurl')
 var key = null
@@ -78,33 +76,31 @@ function pollFile () {
 			downloads.style.display = 'none'
 		}
 		var urls = data.urls && data.urls.length > 0 ? data.urls : null
-		if (data.file || urls) {
+		if (data.files || urls) {
 		} else {
 		}
 		if (data.files) {
-			downloads.style.display = 'block'
-			downloads.innerHTML = '';
-			downloads.innerHTML = '';
-			data.files.forEach(function (file) {
-			  var downloadLink = document.createElement("a");
-			  downloadLink.href = file.url;
-			  downloadLink.target = '_blank';
-			  downloadLink.textContent = file.name;
-			  downloadLink.className = "downloadlink";
-		      var div = document.createElement('div');
-			  div.appendChild(downloadLink);
-			  downloads.appendChild(div);
-			})
-		} else {
-			downloads.style.display = 'none'
-		}
+      downloads.style.display = 'block'
+      downloads.innerHTML = '';
+      data.files.forEach(function (file) {
+        var downloadlink = document.createElement("a"); // Crear un nuevo elemento de enlace para cada archivo
+        downloadlink.textContent = file.name;
+        downloadlink.href = './download/' + key + '/' + file.name
+        downloadlink.className = "downloadlink";
+        var div = document.createElement('div');
+        div.appendChild(downloadlink);
+        downloads.appendChild(div);
+      })
+    } else {
+      downloads.style.display = 'none'
+    }
 		if (urls) {
 			urlsnode.innerHTML = '<br/><div style="font-size: 1.3em;"><em>Urls</em></div>'
 			urls.forEach(function (url) {
 			  var urllink = document.createElement("a")
 			  urllink.href = url
 			  urllink.target = '_blank'
-		      urllink.textContent = url
+		    urllink.textContent = url
 			  urllink.className = "downloadlink"
 			  var div = document.createElement('div')
 			  div.appendChild(urllink)
@@ -122,13 +118,11 @@ function generateKey () {
 		if (x.responseText !== 'error' && x.status === 200) {
 			key = x.responseText
 			keyOutput.textContent = key
-			downloadlink.href = './download/' + key
 			if (pollTimer) clearInterval(pollTimer)
 			pollTimer = setInterval(pollFile, 5 * 1000)
 		} else {
 			key = null
-			keyOutput.textContent = '––––'
-			downloadlink.href = ''
+			keyOutput.textContent = '––––'			
 		}
 		keyGenBtn.blur()
 	})
