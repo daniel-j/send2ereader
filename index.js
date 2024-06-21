@@ -10,7 +10,7 @@ const mount = require('koa-mount')
 const { mkdirp } = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
-const { extname, basename, dirname } = require('path')
+const { join, extname, basename, dirname } = require('path')
 const FileType = require('file-type')
 const { transliterate } = require('transliteration')
 
@@ -313,6 +313,29 @@ router.post('/upload', upload.single('file'), async ctx => {
           resolve(outname)
         })
       })
+    } else if (mimetype === 'application/pdf' && ctx.request.body.pdfCropMargins) {
+
+      data = await new Promise((resolve, reject) => {
+        const pdfcropmargins = spawn('pdfcropmargins', ['-s', '-u', basename(ctx.request.file.path)], {
+          stdio: 'inherit',
+          cwd: dirname(ctx.request.file.path)
+        })
+        pdfcropmargins.once('close', (code) => {
+          fs.unlink(ctx.request.file.path, (err) => {
+            if (err) console.error(err)
+            else console.log('Removed file', ctx.request.file.path)
+          })
+          if (code !== 0) {
+            reject('pdfcropmargins error code ' + code)
+            return
+          }
+          const dir = dirname(ctx.request.file.path);
+          const base = basename(ctx.request.file.path, '.pdf');
+          
+          resolve(join(dir, `${base}_cropped.pdf`))
+        })
+      })
+    
     } else {
       // No conversion
       data = ctx.request.file.path
