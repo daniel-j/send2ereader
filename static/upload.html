@@ -141,6 +141,11 @@ uploadform.addEventListener('submit', function (e) {
 	req.upload.onprogress = function (e) {
 		if (e.lengthComputable) {
 			console.log("progress: " + e.loaded / e.total)
+			var complete = e.loaded / e.total == 1
+			handleFlash({
+				success: true,
+				message: !complete ? "Uploading file... " + Math.round(100 * e.loaded / e.total) + '%' : "Processing uploaded file... please wait"
+			})
 		}
 	}
 	req.onreadystatechange = function (e) {
