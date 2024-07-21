@@ -1,0 +1,15 @@
+diff --git a/node_modules/@koa/multer/index.js b/node_modules/@koa/multer/index.js
+index d5be076..252208e 100644
+--- a/node_modules/@koa/multer/index.js
++++ b/node_modules/@koa/multer/index.js
+@@ -11,9 +11,7 @@
+  * Module dependencies.
+  */
+ 
+-let originalMulter = require('fix-esm').require('multer');
+-
+-if (originalMulter.default) originalMulter = originalMulter.default;
++let originalMulter = require('multer');
+ 
+ function multer(options) {
+   const m = originalMulter(options);

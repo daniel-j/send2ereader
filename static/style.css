@@ -104,6 +104,7 @@ input[type="url"], input[type="text"] {
 #uploadstatus.error {
     background-color: #FDD;
     border: 1px solid #F77;
+    white-space: pre;
 }
 td {
     padding: 10px;

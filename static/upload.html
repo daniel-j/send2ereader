@@ -11,27 +11,28 @@
 
 <div class="wrapper">
 	<h1 class="center">Send to Kobo/Kindle</h1>
-
-	<form action="./upload" method="post" enctype="multipart/form-data">
+	<form action="./upload" method="post" enctype="multipart/form-data" id="uploadform">
 		<table style="margin: 0 auto;" cellpadding=0 cellspacing=0>
 			<tr><td class="right"><label for="keyinput"><strong>Unique key</strong></label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
 			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/epub,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar"/><br/><br/><div id="fileinfo"></div></td></tr>
 			<tr><td class="right"><label for="urlinput"><strong>Send url</strong></label></td><td><input type="url" name="url" id="urlinput" autocomplete="off" style="width: 100%"></td></tr>
-			<tr><td class="right"><label for="kepubify"><strong>Kepubify</strong><br/><em>Kobo only</em></label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
-			<tr><td class="right"><label for="kepubify"><strong>pdfCropMargins</strong><br/><em>PDF files only</em></label></td><td><input type="checkbox" name="pdfCropMargins" id="pdfCropMargins" checked /></td></tr>
+			<tr><td class="right"><input type="checkbox" name="kepubify" id="kepubify" checked /></td><td><label for="kepubify"><strong>Kepubify</strong> <em>Kobo only</em></label></td></tr>
+			<tr><td class="right"><input type="checkbox" name="kindlegen" id="kindlegen" checked /></td><td><label for="kindlegen"><strong>KindleGen</strong> <em>Kindle only</em></label></td></tr>
+			<tr><td class="right"><input type="checkbox" name="pdfcropmargins" id="pdfcropmargins" /></td><td><label for="pdfcropmargins"><strong>Crop margins of pdfs</strong></label></td></tr>
+			<tr><td class="right"><input type="checkbox" name="transliteration" id="transliteration" /></td><td><label for="transliteration"><strong>Transliteration of filename</strong></label></td></tr>
 			<tr class="center"><td colspan="2"><input type="submit" value="Upload and send" /></td></tr>
 		</table>
 		<div id="uploadstatus"></div>
 	</form>
 	<div style="padding: 15px; padding-top: 0; text-align: justify;">
 		<p>Go this this page on your Kobo/Kindle ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader.</p>
-		<p>If you send an EPUB file to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file to a Kindle it will be sent unprocessed. If you send an EPUB file and tick the Kepubify checkbox, it will be converted into a Kobo EPUB using Kepubify. If you send a MOBI file to a Kobo, it will not be converted.</p>
+		<p>If you send an EPUB file to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file to a Kindle it will be sent unprocessed. Files sent to Kindle eReaders will have their names stripped of special characters, a limitation of the Kindle browser. If you send an EPUB file and tick the Kepubify checkbox, it will be converted into a Kobo EPUB using Kepubify. If you send a MOBI file to a Kobo, it will not be converted.</p>
 		<p>Your ebook will be stored on the server as long as your Kobo/Kindle is viewing the unique key and is connected to wifi. It will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your ereader.</p>
 		<p>By using this tool you agree that the ebook you upload is processed on the server and stored for a short time.</p>
 	</div>
 	<hr/>
 	<div class="center">
-		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a>, <a href="https://github.com/abarker/pdfCropMargins" target="_blank">pdfCropMargins</a> and <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a><br/>
+		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a>, <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a> and <a href="https://github.com/abarker/pdfCropMargins" target="_blank">pdfCropMargins</a><br/>
 		Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a> - <a id="siteurl">https://send.djazz.se</span>
 	</div>
 </div>
@@ -39,6 +40,7 @@
 <div id="logs"></div>
 
 <script>
+var uploadform = document.getElementById('uploadform')
 var uploadstatus = document.getElementById('uploadstatus')
 var keyinput = document.getElementById('keyinput')
 var fileinput = document.getElementById('fileinput')
@@ -47,34 +49,49 @@ var fileinfo = document.getElementById('fileinfo')
 var urlinput = document.getElementById('urlinput')
 var siteurl = document.getElementById('siteurl')
 
-var flash = getCookies().flash
-// deleteCookie('flash')
+var flashtimer = null
 
-if (flash) {
-	if (flash.message) {
-		if (flash.success) {
-			uploadstatus.className = " success"
-			uploadstatus.innerHTML = flash.message
-		} else {
-			uploadstatus.className = " error"
-			uploadstatus.textContent = flash.message
-		}
-		uploadstatus.style.opacity = 1
-	}
-	keyinput.value = flash.key || ''
-	urlinput.value = flash.url || ''
-}
-uploadstatus.addEventListener('click', function () {
+function hideUploadStatus() {
 	uploadstatus.style.opacity = 0
-	setTimeout(function () {
+	clearTimeout(flashtimer)
+	flashtimer = setTimeout(function () {
 		uploadstatus.textContent = ''
 		uploadstatus.className = ''
 	}, 500)
+}
+
+function handleFlash(flash) {
+	// if (!flash) getCookies().flash
+	console.log(flash)
+	clearTimeout(flashtimer)
+	if (flash) {
+		if (flash.message) {
+			if (flash.success) {
+				uploadstatus.className = " success"
+				uploadstatus.innerHTML = flash.message.trim()
+			} else {
+				uploadstatus.className = " error"
+				uploadstatus.textContent = flash.message.trim()
+			}
+			uploadstatus.style.opacity = 1
+		}
+		if (flash.key) {
+			keyinput.value = flash.key
+		}
+		if (flash.url) {
+			urlinput.value = flash.url
+		}
+	} else {
+		hideUploadStatus()
+	}
+}
+
+// handleFlash()
+
+uploadstatus.addEventListener('click', function () {
+	hideUploadStatus()
 }, false)
 
-document.body.addEventListener("drop", function () {
-	log("file dropped")
-}, false)
 
 function fileinputChange () {
 	if (!fileinput.files[0] || fileinput.files.length === 0) {
@@ -115,6 +132,50 @@ if (isIOS) {
 	// Can't accept .mobi files otherwise (iOS thinks it's an unknown type)
 	fileinput.accept = ''
 }
+
+uploadform.addEventListener('submit', function (e) {
+	hideUploadStatus()
+	e.preventDefault()
+	var fd = new FormData(uploadform)
+	var req = new XMLHttpRequest()
+	req.open('POST', uploadform.action, true)
+	req.upload.onprogress = function (e) {
+		if (e.lengthComputable) {
+			console.log("progress: " + e.loaded / e.total)
+			var complete = e.loaded / e.total == 1
+			handleFlash({
+				success: true,
+				message: !complete ? "Uploading file... " + Math.round(100 * e.loaded / e.total) + '%' : "Processing uploaded file... please wait"
+			})
+		}
+	}
+	req.onreadystatechange = function (e) {
+		console.log(req.readyState, req.status)
+	}
+	req.onload = function () {
+		console.log('upload ok', req.status, req.responseText, req.responseType)
+		handleFlash({
+			success: req.status == 200,
+			message: req.responseText
+		})
+	}
+	req.onerror = function () {
+		console.log('upload error', req.status, req.responseText, req.responseType)
+		handleFlash({
+			success: false,
+			message: "Upload error - is the key correct?"
+		})
+	}
+	req.onabort = function () {
+		console.log('aborted', req.status)
+		handleFlash({
+			success: false,
+			message: "Upload aborted"
+		})
+	}
+	req.send(fd)
+	return false
+}, false)
 
 siteurl.textContent = window.location.href
 siteurl.href = siteurl.textContent
