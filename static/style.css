@@ -94,7 +94,6 @@ input[type="url"], input[type="text"] {
     text-align: center;
     cursor: pointer;
     line-height: 1.7;
-    white-space: pre;
 }
 
 #uploadstatus.success {
@@ -105,6 +104,7 @@ input[type="url"], input[type="text"] {
 #uploadstatus.error {
     background-color: #FDD;
     border: 1px solid #F77;
+    white-space: pre;
 }
 td {
     padding: 10px;
