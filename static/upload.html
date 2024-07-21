@@ -11,8 +11,7 @@
 
 <div class="wrapper">
 	<h1 class="center">Send to Kobo/Kindle</h1>
-
-	<form action="./upload" method="post" enctype="multipart/form-data">
+	<form action="./upload" method="post" enctype="multipart/form-data" id="uploadform">
 		<table style="margin: 0 auto;" cellpadding=0 cellspacing=0>
 			<tr><td class="right"><label for="keyinput"><strong>Unique key</strong></label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
 			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/epub,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar"/><br/><br/><div id="fileinfo"></div></td></tr>
@@ -38,6 +37,7 @@
 <div id="logs"></div>
 
 <script>
+var uploadform = document.getElementById('uploadform')
 var uploadstatus = document.getElementById('uploadstatus')
 var keyinput = document.getElementById('keyinput')
 var fileinput = document.getElementById('fileinput')
@@ -46,34 +46,46 @@ var fileinfo = document.getElementById('fileinfo')
 var urlinput = document.getElementById('urlinput')
 var siteurl = document.getElementById('siteurl')
 
-var flash = getCookies().flash
-// deleteCookie('flash')
+var flashtimer = null
 
-if (flash) {
-	if (flash.message) {
-		if (flash.success) {
-			uploadstatus.className = " success"
-			uploadstatus.innerHTML = flash.message
-		} else {
-			uploadstatus.className = " error"
-			uploadstatus.textContent = flash.message
+function handleFlash(flash) {
+	if (!flash) flash = getCookies().flash
+	console.log(flash)
+	clearTimeout(flashtimer)
+	if (flash) {
+		if (flash.message) {
+			if (flash.success) {
+				uploadstatus.className = " success"
+				uploadstatus.innerHTML = flash.message
+			} else {
+				uploadstatus.className = " error"
+				uploadstatus.textContent = flash.message
+			}
+			uploadstatus.style.opacity = 1
 		}
-		uploadstatus.style.opacity = 1
+		keyinput.value = flash.key || ''
+		urlinput.value = flash.url || ''
+	} else {
+		uploadstatus.style.opacity = 0
+		
+		flashtimer = setTimeout(function () {
+			uploadstatus.textContent = ''
+			uploadstatus.className = ''
+		}, 500)
 	}
-	keyinput.value = flash.key || ''
-	urlinput.value = flash.url || ''
 }
+
+handleFlash()
+
 uploadstatus.addEventListener('click', function () {
 	uploadstatus.style.opacity = 0
-	setTimeout(function () {
+	clearTimeout(flashtimer)
+	flashtimer = setTimeout(function () {
 		uploadstatus.textContent = ''
 		uploadstatus.className = ''
 	}, 500)
 }, false)
 
-document.body.addEventListener("drop", function () {
-	log("file dropped")
-}, false)
 
 function fileinputChange () {
 	if (!fileinput.files[0] || fileinput.files.length === 0) {
@@ -114,6 +126,35 @@ if (isIOS) {
 	// Can't accept .mobi files otherwise (iOS thinks it's an unknown type)
 	fileinput.accept = ''
 }
+
+uploadform.addEventListener('submit', function (e) {
+	e.preventDefault()
+	var fd = new FormData(uploadform)
+	var req = new XMLHttpRequest()
+	req.open('POST', uploadform.action, true)
+	req.upload.onprogress = function (e) {
+		if (e.lengthComputable) {
+			console.log("progress: " + e.loaded / e.total)
+		}
+	}
+	req.onreadystatechange = function (e) {
+		console.log(req.readyState, req.status)
+	}
+	req.onload = function () {
+		console.log('upload ok', req.status, req.responseText, req.responseType)
+		handleFlash()
+	}
+	req.onerror = function () {
+		console.log('upload error', req.status)
+		handleFlash()
+	}
+	req.onabort = function () {
+		console.log('aborted', req.status)
+		handleFlash()
+	}
+	req.send(fd)
+	return false
+}, false)
 
 siteurl.textContent = window.location.href
 siteurl.href = siteurl.textContent

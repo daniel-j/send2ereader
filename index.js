@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
+const http = require('http')
 const Koa = require('koa')
 const Router = require('@koa/router')
 const multer = require('@koa/multer')
 const logger = require('koa-logger')
 const sendfile = require('koa-sendfile')
 const serve = require('koa-static')
-const mount = require('koa-mount')
 const { mkdirp } = require('mkdirp')
 const fs = require('fs')
 const { spawn } = require('child_process')
@@ -79,6 +79,11 @@ function expireKey (key) {
 function flash (ctx, data) {
   console.log(data)
   ctx.cookies.set('flash', encodeURIComponent(JSON.stringify(data)), {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: 10 * 1000})
+  ctx.response.status = data.success ? 200 : 400
+  if (!data.success) {
+    ctx.set("Connection", "close")
+  }
+  ctx.body = data
 }
 
 const app = new Koa()
@@ -110,12 +115,12 @@ const upload = multer({
     const key = req.body.key.toUpperCase()
     if (!app.context.keys.has(key)) {
       console.error('FileFilter: Unknown key: ' + key)
-      cb(null, false)
+      cb("Unknown key " + key, false)
       return
     }
     if ((!allowedTypes.includes(file.mimetype) && file.mimetype != "application/octet-stream") || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substring(1))) {
       console.error('FileFilter: File is of an invalid type ', file)
-      cb(null, false)
+      cb("Invalid filetype: " + file, false)
       return
     }
     cb(null, true)
@@ -181,7 +186,23 @@ router.get('/download/:key', async ctx => {
   }
 })
 
-router.post('/upload', upload.single('file'), async ctx => {
+router.post('/upload', async (ctx, next) => {
+
+  try {
+    await upload.single('file')(ctx, () => {})
+  } catch (err) {
+    flash(ctx, {
+      message: err,
+      success: false
+    })
+    // ctx.throw(400, err)
+    // ctx.res.end(err)
+    await next()
+    return
+  }
+
+  ctx.res.writeContinue()
+
   const key = ctx.request.body.key.toUpperCase()
 
   if (ctx.request.file) {
@@ -193,13 +214,13 @@ router.post('/upload', upload.single('file'), async ctx => {
       message: 'Unknown key ' + key,
       success: false
     })
-    ctx.redirect('back', '/')
     if (ctx.request.file) {
       fs.unlink(ctx.request.file.path, (err) => {
         if (err) console.error(err)
         else console.log('Removed file', ctx.request.file.path)
       })
     }
+    await next()
     return
   }
 
@@ -219,16 +240,17 @@ router.post('/upload', upload.single('file'), async ctx => {
 
   if (ctx.request.file) {
     if (ctx.request.file.size === 0) {
-      flash(ctx, {
-        message: 'Invalid file submitted',
+      let data = {
+        message: 'Invalid file submitted (empty file)',
         success: false,
         key: key
-      })
-      ctx.redirect('back', '/')
+      }
+      flash(ctx, data)
       fs.unlink(ctx.request.file.path, (err) => {
         if (err) console.error(err)
         else console.log('Removed file', ctx.request.file.path)
       })
+      await next()
       return
     }
 
@@ -250,11 +272,11 @@ router.post('/upload', upload.single('file'), async ctx => {
         success: false,
         key: key
       })
-      ctx.redirect('back', '/')
       fs.unlink(ctx.request.file.path, (err) => {
         if (err) console.error(err)
         else console.log('Removed file', ctx.request.file.path)
       })
+      await next()
       return
     }
 
@@ -289,7 +311,7 @@ router.post('/upload', upload.single('file'), async ctx => {
         })
       })
 
-    } else if (mimetype === TYPE_EPUB && info.agent.includes('Kobo') && ctx.request.body.kepubify) {
+    } else if (mimetype === TYPE_EPUB && (info.agent.includes('Kobo') || info.agent.toLowerCase().includes('tolino')) && ctx.request.body.kepubify) {
       // convert to Kobo EPUB
       conversion = 'kepubify'
       const outname = ctx.request.file.path.replace(/\.epub$/i, '.kepub.epub')
@@ -336,7 +358,8 @@ router.post('/upload', upload.single('file'), async ctx => {
 
   let messages = []
   if (ctx.request.file) {
-    messages.push('Upload successful! ' + (conversion ? ' Ebook was converted with ' + conversion + ' and sent' : ' Sent')+' to '+(info.agent.includes('Kobo') ? 'a Kobo device.' : (info.agent.includes('Kindle') ? 'a Kindle device.' : 'a device.')))
+    ctx.request.file.skip = true
+    messages.push('Upload successful! ' + (conversion ? 'Ebook was converted with ' + conversion + ' and sent' : 'Sent')+' to '+(info.agent.includes('Kobo') ? 'a Kobo device.' : (info.agent.includes('Kindle') ? 'a Kindle device.' : 'a device.')))
     messages.push('Filename: ' + filename)
   }
   if (url) {
@@ -349,7 +372,7 @@ router.post('/upload', upload.single('file'), async ctx => {
       success: false,
       key: key
     })
-    ctx.redirect('back', '/')
+    await next()
     return
   }
 
@@ -359,7 +382,8 @@ router.post('/upload', upload.single('file'), async ctx => {
     key: key,
     url: url
   })
-  ctx.redirect('back', '/')
+
+  await next()
 })
 
 router.delete('/file/:key', async ctx => {
@@ -376,6 +400,7 @@ router.get('/status/:key', async ctx => {
   const key = ctx.params.key.toUpperCase()
   const info = ctx.keys.get(key)
   if (!info) {
+    ctx.response.status = 404
     ctx.body = {error: 'Unknown key'}
     return
   }
@@ -402,9 +427,8 @@ router.get('/receive', async ctx => {
 router.get('/', async ctx => {
   const agent = ctx.get('user-agent')
   console.log(ctx.ip, agent)
-  await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle')? 'static/download.html' : 'static/upload.html')
+  await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle') || agent.toLowerCase().includes('tolino') ? 'static/download.html' : 'static/upload.html')
 })
-
 
 app.use(router.routes())
 app.use(router.allowedMethods())
@@ -414,7 +438,14 @@ app.use(serve("static"))
 fs.rm('uploads', {recursive: true}, (err) => {
   if (err) throw err
   mkdirp('uploads').then (() => {
-    app.listen(port)
+    // app.listen(port)
+    const fn = app.callback()
+    const server = http.createServer(fn)
+    server.on('checkContinue', (req, res) => {
+      console.log("check continue!")
+      fn(req, res)
+    })
+    server.listen(port)
     console.log('server is listening on port ' + port)
   })
 })
