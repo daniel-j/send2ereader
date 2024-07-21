@@ -13,6 +13,7 @@ const { spawn } = require('child_process')
 const { extname, basename, dirname } = require('path')
 const FileType = require('file-type')
 const { transliterate } = require('transliteration')
+const sanitize = require('sanitize-filename')
 
 const port = 3001
 const expireDelay = 30  // 30 seconds
@@ -109,7 +110,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     // Fixes charset
     // https://github.com/expressjs/multer/issues/1104#issuecomment-1152987772
-    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
+    file.originalname = sanitize(Buffer.from(file.originalname, 'latin1').toString('utf8'))
 
     console.log('Incoming file:', file)
     const key = req.body.key.toUpperCase()
@@ -304,7 +305,7 @@ router.post('/upload', async (ctx, next) => {
     let data = null
     filename = ctx.request.file.originalname
     if (ctx.request.body.transliteration) {
-      filename = doTransliterate(filename)
+      filename = sanitize(doTransliterate(filename))
     }
     if (info.agent.includes('Kindle')) {
       filename = filename.replace(/[^\.\w\-"'\(\)]/g, '_')
