@@ -78,9 +78,6 @@ function pollFile () {
 			downloads.style.display = 'none'
 		}
 		var urls = data.urls && data.urls.length > 0 ? data.urls : null
-		if (data.file || urls) {
-		} else {
-		}
 		if (data.file) {
 			downloads.style.display = 'block'
 			downloadlink.textContent = data.file.name

@@ -164,6 +164,23 @@ router.post('/generate', async ctx => {
   ctx.body = key
 })
 
+router.get('/download/:key', async ctx => {
+  const key = ctx.cookies.get('key')
+  if (!key) {
+    await next()
+    return
+  }
+
+  const info = ctx.keys.get(key)
+
+  if (!info || !info.file) {
+    await next()
+    return
+  }
+
+  ctx.redirect('/' + encodeURIComponent(info.file.name));
+})
+
 async function downloadFile (ctx, next) {
   const key = ctx.cookies.get('key')
   if (!key) {
