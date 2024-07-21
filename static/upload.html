@@ -16,14 +16,16 @@
 			<tr><td class="right"><label for="keyinput"><strong>Unique key</strong></label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
 			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/epub,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar"/><br/><br/><div id="fileinfo"></div></td></tr>
 			<tr><td class="right"><label for="urlinput"><strong>Send url</strong></label></td><td><input type="url" name="url" id="urlinput" autocomplete="off" style="width: 100%"></td></tr>
-			<tr><td class="right"><label for="kepubify"><strong>Kepubify</strong><br/><em>Kobo only</em></label></td><td><input type="checkbox" name="kepubify" id="kepubify" checked /></td></tr>
+			<tr><td class="right"><input type="checkbox" name="kepubify" id="kepubify" checked /></td><td><label for="kepubify"><strong>Kepubify</strong> <em>Kobo only</em></label></td></tr>
+			<tr><td class="right"><input type="checkbox" name="kindlegen" id="kindlegen" checked /></td><td><label for="kindlegen"><strong>KindleGen</strong> <em>Kindle only</em></label></td></tr>
+			<tr><td class="right"><input type="checkbox" name="transliteration" id="transliteration" /></td><td><label for="transliteration"><strong>Transliteration of filename</strong></label></td></tr>
 			<tr class="center"><td colspan="2"><input type="submit" value="Upload and send" /></td></tr>
 		</table>
 		<div id="uploadstatus"></div>
 	</form>
 	<div style="padding: 15px; padding-top: 0; text-align: justify;">
 		<p>Go this this page on your Kobo/Kindle ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader.</p>
-		<p>If you send an EPUB file to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file to a Kindle it will be sent unprocessed. If you send an EPUB file and tick the Kepubify checkbox, it will be converted into a Kobo EPUB using Kepubify. If you send a MOBI file to a Kobo, it will not be converted.</p>
+		<p>If you send an EPUB file to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file to a Kindle it will be sent unprocessed. Files sent to Kindle eReaders will have their names stripped of special characters, a limitation of the Kindle browser. If you send an EPUB file and tick the Kepubify checkbox, it will be converted into a Kobo EPUB using Kepubify. If you send a MOBI file to a Kobo, it will not be converted.</p>
 		<p>Your ebook will be stored on the server as long as your Kobo/Kindle is viewing the unique key and is connected to wifi. It will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your ereader.</p>
 		<p>By using this tool you agree that the ebook you upload is processed on the server and stored for a short time.</p>
 	</div>
@@ -48,8 +50,9 @@ var siteurl = document.getElementById('siteurl')
 
 var flashtimer = null
 
-function handleFlash(flash) {
-	if (!flash) flash = getCookies().flash
+function handleFlash(flashFallback) {
+	var flash = getCookies().flash
+	if (!flash) flash = flashFallback
 	console.log(flash)
 	clearTimeout(flashtimer)
 	if (flash) {
@@ -63,8 +66,12 @@ function handleFlash(flash) {
 			}
 			uploadstatus.style.opacity = 1
 		}
-		keyinput.value = flash.key || ''
-		urlinput.value = flash.url || ''
+		if (flash.key) {
+			keyinput.value = flash.key
+		}
+		if (flash.url) {
+			urlinput.value = flash.url
+		}
 	} else {
 		uploadstatus.style.opacity = 0
 		
@@ -146,7 +153,10 @@ uploadform.addEventListener('submit', function (e) {
 	}
 	req.onerror = function () {
 		console.log('upload error', req.status)
-		handleFlash()
+		handleFlash({
+			success: false,
+			message: "Upload error - is the key correct?"
+		})
 	}
 	req.onabort = function () {
 		console.log('aborted', req.status)

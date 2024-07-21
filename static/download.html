@@ -84,6 +84,7 @@ function pollFile () {
 		if (data.file) {
 			downloads.style.display = 'block'
 			downloadlink.textContent = data.file.name
+			downloadlink.href = '/' + encodeURIComponent(data.file.name)
 		} else {
 			downloads.style.display = 'none'
 		}
@@ -111,7 +112,7 @@ function generateKey () {
 		if (x.responseText !== 'error' && x.status === 200) {
 			key = x.responseText
 			keyOutput.textContent = key
-			downloadlink.href = './download/' + key
+			downloadlink.href = ''
 			if (pollTimer) clearInterval(pollTimer)
 			pollTimer = setInterval(pollFile, 5 * 1000)
 		} else {

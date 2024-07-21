@@ -109,7 +109,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     // Fixes charset
     // https://github.com/expressjs/multer/issues/1104#issuecomment-1152987772
-    file.originalname = doTransliterate(Buffer.from(file.originalname, 'latin1').toString('utf8'))
+    file.originalname = Buffer.from(file.originalname, 'latin1').toString('utf8')
 
     console.log('Incoming file:', file)
     const key = req.body.key.toUpperCase()
@@ -159,13 +159,22 @@ router.post('/generate', async ctx => {
     if(ctx.keys.get(key) === info) removeKey(key)
   }, maxExpireDuration * 1000)
 
+  ctx.cookies.set('key', key, {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: expireDelay * 1000})
+
   ctx.body = key
 })
 
-router.get('/download/:key', async ctx => {
-  const key = ctx.params.key.toUpperCase()
+async function downloadFile (ctx, next) {
+  const key = ctx.cookies.get('key')
+  if (!key) {
+    await next()
+    return
+  }
+  const filename = decodeURIComponent(ctx.params.filename)
   const info = ctx.keys.get(key)
-  if (!info || !info.file) {
+
+  if (!info || !info.file || info.file.name !== filename) {
+    await next()
     return
   }
   if (info.agent !== ctx.get('user-agent')) {
@@ -173,18 +182,13 @@ router.get('/download/:key', async ctx => {
     return
   }
   expireKey(key)
-  // const fallback = basename(info.file.path)
-  const sanename = info.file.name.replace(/[^\.\w\-"'\(\)]/g, '_')
-  console.log('Sending file', [info.file.path, info.file.name, sanename])
-  await sendfile(ctx, info.file.path)
+  console.log('Sending file', [info.file.path, info.file.name])
   if (info.agent.includes('Kindle')) {
     // Kindle needs a safe name or it thinks it's an invalid file
-    ctx.attachment(sanename)
-  } else {
-    // Kobo always uses fallback
-    ctx.attachment(info.file.name, {fallback: sanename})
+    ctx.attachment(info.file.name)
   }
-})
+  await sendfile(ctx, info.file.path)
+}
 
 router.post('/upload', async (ctx, next) => {
 
@@ -282,8 +286,14 @@ router.post('/upload', async (ctx, next) => {
 
     let data = null
     filename = ctx.request.file.originalname
+    if (ctx.request.body.transliteration) {
+      filename = doTransliterate(filename)
+    }
+    if (info.agent.includes('Kindle')) {
+      filename = filename.replace(/[^\.\w\-"'\(\)]/g, '_')
+    }
 
-    if (mimetype === TYPE_EPUB && info.agent.includes('Kindle')) {
+    if (mimetype === TYPE_EPUB && info.agent.includes('Kindle') && ctx.request.body.kindlegen) {
       // convert to .mobi
       conversion = 'kindlegen'
       const outname = ctx.request.file.path.replace(/\.epub$/i, '.mobi')
@@ -411,6 +421,7 @@ router.get('/status/:key', async ctx => {
     return
   }
   expireKey(key)
+  ctx.cookies.set('key', key, {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: expireDelay * 1000})
   ctx.body = {
     alive: info.alive,
     file: info.file ? {
@@ -431,10 +442,13 @@ router.get('/', async ctx => {
   await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle') || agent.toLowerCase().includes('tolino') ? 'static/download.html' : 'static/upload.html')
 })
 
+router.get('/:filename', downloadFile)
+
+app.use(serve("static"))
+
 app.use(router.routes())
 app.use(router.allowedMethods())
 
-app.use(serve("static"))
 
 fs.rm('uploads', {recursive: true}, (err) => {
   if (err) throw err
