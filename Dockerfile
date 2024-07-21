@@ -16,6 +16,12 @@ RUN wget https://web.archive.org/web/20150803131026if_/https://kindlegen.s3.amaz
     chmod +x /usr/local/bin/kindlegen && \
     rm -rf kindlegen
 
+RUN apk add --no-cache pipx
+
+ENV PATH="$PATH:/root/.local/bin"
+
+RUN pipx install pdfCropMargins
+
 # Copy files needed by npm install
 COPY package*.json ./
 
