@@ -338,6 +338,7 @@ router.post('/upload', async (ctx, next) => {
     } else {
       // No conversion
       data = ctx.request.file.path
+      filename = filename.replace(/\.epub$/i, '.epub').replace(/\.pdf$/i, '.pdf')
     }
 
     expireKey(key)
