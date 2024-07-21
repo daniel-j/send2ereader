@@ -78,12 +78,12 @@ function expireKey (key) {
 
 function flash (ctx, data) {
   console.log(data)
-  ctx.cookies.set('flash', encodeURIComponent(JSON.stringify(data)), {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: 10 * 1000})
+  //ctx.cookies.set('flash', encodeURIComponent(JSON.stringify(data)), {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: 10 * 1000})
   ctx.response.status = data.success ? 200 : 400
   if (!data.success) {
     ctx.set("Connection", "close")
   }
-  ctx.body = data
+  ctx.body = data.message
 }
 
 const app = new Koa()
@@ -315,11 +315,23 @@ router.post('/upload', async (ctx, next) => {
       conversion = 'kindlegen'
       const outname = ctx.request.file.path.replace(/\.epub$/i, '.mobi')
       filename = filename.replace(/\.kepub\.epub$/i, '.epub').replace(/\.epub$/i, '.mobi')
+      let stderr = ''
 
-      data = await new Promise((resolve, reject) => {
+      let p = new Promise((resolve, reject) => {
         const kindlegen = spawn('kindlegen', [basename(ctx.request.file.path), '-dont_append_source', '-c1', '-o', basename(outname)], {
-          stdio: 'inherit',
+          // stdio: 'inherit',
           cwd: dirname(ctx.request.file.path)
+        })
+        kindlegen.once('error', function (err) {
+          fs.unlink(ctx.request.file.path, (err) => {
+            if (err) console.error(err)
+            else console.log('Removed file', ctx.request.file.path)
+          })
+          fs.unlink(ctx.request.file.path.replace(/\.epub$/i, '.mobi8'), (err) => {
+            if (err) console.error(err)
+            else console.log('Removed file', ctx.request.file.path.replace(/\.epub$/i, '.mobi8'))
+          })
+          reject('kindlegen error: ' + err)
         })
         kindlegen.once('close', (code) => {
           fs.unlink(ctx.request.file.path, (err) => {
@@ -330,13 +342,31 @@ router.post('/upload', async (ctx, next) => {
             if (err) console.error(err)
             else console.log('Removed file', ctx.request.file.path.replace(/\.epub$/i, '.mobi8'))
           })
-          if (code !== 0) {
-            console.warn('kindlegen error code ' + code)
+          if (code !== 0 && code !== 1) {
+            reject('kindlegen error code: ' + code + '\n' + stderr)
+            return
           }
 
           resolve(outname)
         })
+        kindlegen.stdout.on('data', function (str) {
+          stderr += str
+          console.log('kindlegen: ' + str)
+        })
+        kindlegen.stderr.on('data', function (str) {
+          stderr += str
+          console.log('kindlegen: ' + str)
+        })
       })
+      try {
+        data = await p
+      } catch (err) {
+        flash(ctx, {
+          success: false,
+          message: err.replaceAll(basename(ctx.request.file.path), "infile.epub").replaceAll(basename(outname), "outfile.mobi")
+        })
+        return
+      }
 
     } else if (mimetype === TYPE_EPUB && (info.agent.includes('Kobo') || info.agent.toLowerCase().includes('tolino')) && ctx.request.body.kepubify) {
       // convert to Kobo EPUB
@@ -344,10 +374,18 @@ router.post('/upload', async (ctx, next) => {
       const outname = ctx.request.file.path.replace(/\.epub$/i, '.kepub.epub')
       filename = filename.replace(/\.kepub\.epub$/i, '.epub').replace(/\.epub$/i, '.kepub.epub')
 
-      data = await new Promise((resolve, reject) => {
+      let p = new Promise((resolve, reject) => {
+        let stderr = ''
         const kepubify = spawn('kepubify', ['-v', '-u', '-o', basename(outname), basename(ctx.request.file.path)], {
-          stdio: 'inherit',
+          //stdio: 'inherit',
           cwd: dirname(ctx.request.file.path)
+        })
+        kepubify.once('error', function (err) {
+          fs.unlink(ctx.request.file.path, (err) => {
+            if (err) console.error(err)
+            else console.log('Removed file', ctx.request.file.path)
+          })
+          reject('kepubify error: ' + err)
         })
         kepubify.once('close', (code) => {
           fs.unlink(ctx.request.file.path, (err) => {
@@ -355,13 +393,30 @@ router.post('/upload', async (ctx, next) => {
             else console.log('Removed file', ctx.request.file.path)
           })
           if (code !== 0) {
-            reject('kepubify error code ' + code)
+            reject('Kepubify error code: ' + code + '\n' + stderr)
             return
           }
 
           resolve(outname)
         })
+        kepubify.stdout.on('data', function (str) {
+          stderr += str
+          console.log('kepubify: ' + str)
+        })
+        kepubify.stderr.on('data', function (str) {
+          stderr += str
+          console.log('kepubify: ' + str)
+        })
       })
+      try {
+        data = await p
+      } catch (err) {
+        flash(ctx, {
+          success: false,
+          message: err.replaceAll(basename(ctx.request.file.path), "infile.epub").replaceAll(basename(outname), "outfile.kepub.epub")
+        })
+        return
+      }
     } else {
       // No conversion
       data = ctx.request.file.path

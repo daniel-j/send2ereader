@@ -50,19 +50,27 @@ var siteurl = document.getElementById('siteurl')
 
 var flashtimer = null
 
-function handleFlash(flashFallback) {
-	var flash = getCookies().flash
-	if (!flash) flash = flashFallback
+function hideUploadStatus() {
+	uploadstatus.style.opacity = 0
+	clearTimeout(flashtimer)
+	flashtimer = setTimeout(function () {
+		uploadstatus.textContent = ''
+		uploadstatus.className = ''
+	}, 500)
+}
+
+function handleFlash(flash) {
+	// if (!flash) getCookies().flash
 	console.log(flash)
 	clearTimeout(flashtimer)
 	if (flash) {
 		if (flash.message) {
 			if (flash.success) {
 				uploadstatus.className = " success"
-				uploadstatus.innerHTML = flash.message
+				uploadstatus.innerHTML = flash.message.trim()
 			} else {
 				uploadstatus.className = " error"
-				uploadstatus.textContent = flash.message
+				uploadstatus.textContent = flash.message.trim()
 			}
 			uploadstatus.style.opacity = 1
 		}
@@ -73,24 +81,14 @@ function handleFlash(flashFallback) {
 			urlinput.value = flash.url
 		}
 	} else {
-		uploadstatus.style.opacity = 0
-		
-		flashtimer = setTimeout(function () {
-			uploadstatus.textContent = ''
-			uploadstatus.className = ''
-		}, 500)
+		hideUploadStatus()
 	}
 }
 
-handleFlash()
+// handleFlash()
 
 uploadstatus.addEventListener('click', function () {
-	uploadstatus.style.opacity = 0
-	clearTimeout(flashtimer)
-	flashtimer = setTimeout(function () {
-		uploadstatus.textContent = ''
-		uploadstatus.className = ''
-	}, 500)
+	hideUploadStatus()
 }, false)
 
 
@@ -135,6 +133,7 @@ if (isIOS) {
 }
 
 uploadform.addEventListener('submit', function (e) {
+	hideUploadStatus()
 	e.preventDefault()
 	var fd = new FormData(uploadform)
 	var req = new XMLHttpRequest()
@@ -149,10 +148,13 @@ uploadform.addEventListener('submit', function (e) {
 	}
 	req.onload = function () {
 		console.log('upload ok', req.status, req.responseText, req.responseType)
-		handleFlash()
+		handleFlash({
+			success: req.status == 200,
+			message: req.responseText
+		})
 	}
 	req.onerror = function () {
-		console.log('upload error', req.status)
+		console.log('upload error', req.status, req.responseText, req.responseType)
 		handleFlash({
 			success: false,
 			message: "Upload error - is the key correct?"
@@ -160,7 +162,10 @@ uploadform.addEventListener('submit', function (e) {
 	}
 	req.onabort = function () {
 		console.log('aborted', req.status)
-		handleFlash()
+		handleFlash({
+			success: false,
+			message: "Upload aborted"
+		})
 	}
 	req.send(fd)
 	return false
