@@ -370,7 +370,7 @@ router.post('/upload', async (ctx, next) => {
         return
       }
 
-    } else if (mimetype === TYPE_EPUB && (info.agent.includes('Kobo') || info.agent.toLowerCase().includes('tolino')) && ctx.request.body.kepubify) {
+    } else if (mimetype === TYPE_EPUB && info.agent.includes('Kobo') && ctx.request.body.kepubify) {
       // convert to Kobo EPUB
       conversion = 'kepubify'
       const outname = ctx.request.file.path.replace(/\.epub$/i, '.kepub.epub')
@@ -562,7 +562,7 @@ router.get('/receive', async ctx => {
 router.get('/', async ctx => {
   const agent = ctx.get('user-agent')
   console.log(ctx.ip, agent)
-  await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle') || agent.toLowerCase().includes('tolino') ? 'static/download.html' : 'static/upload.html')
+  await sendfile(ctx, agent.includes('Kobo') || agent.includes('Kindle') || agent.toLowerCase().includes('tolino') || agent.includes('eReader') /*"eReader" is on Tolino*/ ? 'static/download.html' : 'static/upload.html')
 })
 
 router.get('/:filename', downloadFile)
