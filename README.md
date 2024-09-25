@@ -14,7 +14,17 @@ A self hostable service for sending ebooks to a Kobo or Kindle ereader through t
 6. Start this service by running: `$ npm start` and access it on HTTP port 3001
 
 ### Containerized
-
-1. Have Docker installed
-2. Run `$ docker compose up`
-3. Access the service on HTTP port 3001
+1. You need [Docker](https://www.docker.com/) and [docker-compose](https://docs.docker.com/compose/) installed
+2. Clone this repo (you need Dockerfile, docker-compose.yaml and package.json in the same directory)
+```
+git clone https://github.com/daniel-j/send2ereader.git
+```
+3. Build the image
+```
+docker compose build
+```
+4. run container (-d to keep running in the background)
+```
+docker compose up -d
+```
+5. Access the service on HTTP, default port 3001 (http://localhost:3001)
