@@ -21,6 +21,8 @@ ENV PATH="$PATH:/root/.local/bin"
 
 RUN pipx install pdfCropMargins
 
+RUN rm -rf kindlegen_linux_2.6_i386_v2_9.tar.gz
+
 FROM base AS builder
 
 # Create app directory
@@ -30,7 +32,7 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install app dependencies
-RUN npm install --omit=dev --no-cache
+RUN npm ci --omit=dev --no-cache
 
 # Copy the rest of the app files (see .dockerignore)
 COPY . ./
