@@ -1,5 +1,6 @@
 services:
   send2ereader:
+    platform: linux/amd64 # for arm64 only
     image: send2ereader
     build:
       context: .
