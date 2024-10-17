@@ -24,6 +24,8 @@ ENV PATH="$PATH:/root/.local/bin"
 
 RUN pipx install pdfCropMargins
 
+FROM base AS builder
+
 # Copy files needed by npm install
 COPY package*.json ./
 
@@ -32,6 +34,14 @@ RUN npm install --omit=dev
 
 # Copy the rest of the app files (see .dockerignore)
 COPY . ./
+
+FROM base AS prod
+
+ENV NODE_ENV=production
+
+COPY --chown=node:node --from=builder /usr/src/app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /usr/src/app/package.json ./package.json
+COPY --chown=node:node --from=builder /usr/src/app/index.js ./index.js
 
 # Create uploads directory if it doesn't exist
 RUN mkdir uploads
