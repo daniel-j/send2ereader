@@ -30,6 +30,7 @@ WORKDIR /usr/src/app
 
 # Copy files needed by npm install
 COPY package*.json ./
+COPY patches/* ./
 
 # Install app dependencies
 RUN npm ci --omit=dev --no-cache
