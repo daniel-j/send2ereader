@@ -13,15 +13,14 @@ RUN wget https://github.com/zzet/fp-docker/raw/f2b41fb0af6bb903afd0e429d5487acc6
     tar xvf kindlegen_linux_2.6_i386_v2_9.tar.gz --directory kindlegen && \
     cp kindlegen/kindlegen /usr/local/bin/kindlegen && \
     chmod +x /usr/local/bin/kindlegen && \
-    rm -rf kindlegen
+    rm -rf kindlegen && \
+    rm -rf kindlegen_linux_2.6_i386_v2_9.tar.gz
 
 RUN apk add --no-cache pipx
 
 ENV PATH="$PATH:/root/.local/bin"
 
 RUN pipx install pdfCropMargins
-
-RUN rm -rf kindlegen_linux_2.6_i386_v2_9.tar.gz
 
 FROM base AS builder
 
