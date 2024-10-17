@@ -1,5 +1,6 @@
 services:
   send2ereader:
+    image: send2ereader
     build:
       context: .
       dockerfile: ./Dockerfile

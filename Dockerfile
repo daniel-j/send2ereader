@@ -1,9 +1,6 @@
 # node 20 is lts at the time of writing
 FROM node:lts-alpine
 
-# Create app directory
-WORKDIR /usr/src/app
-
 # Download and install kepubify
 RUN wget https://github.com/pgaskin/kepubify/releases/download/v4.0.4/kepubify-linux-64bit && \
     mv kepubify-linux-64bit /usr/local/bin/kepubify && \
@@ -26,16 +23,19 @@ RUN pipx install pdfCropMargins
 
 FROM base AS builder
 
+# Create app directory
+WORKDIR /usr/src/app
+
 # Copy files needed by npm install
 COPY package*.json ./
 
 # Install app dependencies
-RUN npm install --omit=dev
+RUN npm install --omit=dev --no-cache
 
 # Copy the rest of the app files (see .dockerignore)
 COPY . ./
 
-FROM base AS prod
+FROM builder AS prod
 
 ENV NODE_ENV=production
 
