@@ -6,7 +6,7 @@ services:
     container_name: send2ereader
     # Restart means, Automatic re-start the container after a shutdown unless manual stop container
     restart: unless-stopped
-    # ports means, Bind external and internal docker ports, only change the external port, not the internal port
-    # Arquitecture: <External Port>:<Internal Port>
+    # Ports means, Bind external and internal docker ports, only change the external port, not the internal port
+    # Format: <External Port>:<Internal Port>
     ports:
       - 3001:3001
