@@ -166,6 +166,7 @@ router.post('/generate', async ctx => {
   ctx.body = key
 })
 
+/*
 router.get('/download/:key', async ctx => {
   const key = ctx.cookies.get('key')
   if (!key) {
@@ -182,13 +183,15 @@ router.get('/download/:key', async ctx => {
 
   ctx.redirect('/' + encodeURIComponent(info.file.name));
 })
+*/
 
 async function downloadFile (ctx, next) {
-  const key = ctx.cookies.get('key')
+  const key = ctx.query.key
   if (!key) {
     await next()
     return
   }
+
   const filename = decodeURIComponent(ctx.params.filename)
   const info = ctx.keys.get(key)
 
@@ -544,7 +547,7 @@ router.get('/status/:key', async ctx => {
     return
   }
   expireKey(key)
-  ctx.cookies.set('key', key, {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: expireDelay * 1000})
+  // ctx.cookies.set('key', key, {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: expireDelay * 1000})
   ctx.body = {
     alive: info.alive,
     file: info.file ? {
