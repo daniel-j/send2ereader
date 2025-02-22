@@ -82,7 +82,7 @@ function pollFile () {
 		if (data.file) {
 			downloads.style.display = 'block'
 			downloadlink.textContent = data.file.name
-			downloadlink.href = '/' + encodeURIComponent(data.file.name) + "?key=" + key
+			downloadlink.href = './' + encodeURIComponent(data.file.name) + "?key=" + key
 		} else {
 			downloads.style.display = 'none'
 		}
