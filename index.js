@@ -21,14 +21,17 @@ const expireDelay = 30  // 30 seconds
 const maxExpireDuration = 1 * 60 * 60  // 1 hour
 const maxFileSize = 1024 * 1024 * 800  // 800 MB
 
-const TYPE_EPUB = 'application/epub+zip'
+const TYPE_EPUB = 'application/epub+zip' // the official IANA standard
+
 const TYPE_MOBI = 'application/x-mobipocket-ebook'
 
-const allowedTypes = [TYPE_EPUB, TYPE_MOBI, 'application/pdf', 'application/vnd.comicbook+zip', 'application/vnd.comicbook-rar', 'text/html', 'text/plain', 'application/zip', 'application/x-rar-compressed']
+const allowedTypes = [TYPE_EPUB, TYPE_MOBI, 'application/pdf', 'application/vnd.comicbook+zip', 'application/vnd.comicbook-rar', 'text/html', 'text/plain', 'application/zip', 'application/x-rar-compressed', 'application/epub']
 const allowedExtensions = ['epub', 'mobi', 'pdf', 'cbz', 'cbr', 'html', 'txt']
 
 const keyChars = "23456789ACDEFGHJKLMNPRSTUVWXYZ"
 const keyLength = 4
+
+
 
 
 function doTransliterate(filename) {
@@ -120,7 +123,17 @@ const upload = multer({
       cb("Unknown key " + key, false)
       return
     }
-    if ((!allowedTypes.includes(file.mimetype) && file.mimetype != "application/octet-stream") || !allowedExtensions.includes(extname(file.originalname.toLowerCase()).substring(1))) {
+    
+    // Handle application/epub mimetype
+    if (file.mimetype === "application/epub") {
+      file.mimetype = TYPE_EPUB
+    }
+    
+    const fileExtension = extname(file.originalname.toLowerCase()).substring(1)
+    const isValidMimetype = allowedTypes.includes(file.mimetype) || file.mimetype === "application/octet-stream"
+    const isValidExtension = allowedExtensions.includes(fileExtension)
+    
+    if (!isValidMimetype || !isValidExtension) {
       console.error('FileFilter: File is of an invalid type ', file)
       cb("Invalid filetype: " + JSON.stringify(file), false)
       return
@@ -281,18 +294,37 @@ router.post('/upload', async (ctx, next) => {
     }
 
     let mimetype = ctx.request.file.mimetype
+    console.log('Second validation - Original mimetype:', mimetype)
 
     const type = await FileType.fromFile(ctx.request.file.path)
+    console.log('Second validation - FileType detection result:', type)
 
     if (mimetype == "application/octet-stream" && type) {
       mimetype = type.mime
+      console.log('Second validation - Updated mimetype from octet-stream:', mimetype)
     }
 
     if (mimetype == "application/epub") {
       mimetype = TYPE_EPUB
+      console.log('Second validation - Converted application/epub to:', TYPE_EPUB)
     }
 
-    if ((!type || !allowedTypes.includes(type.mime)) && !allowedTypes.includes(mimetype)) {
+    // Convert application/epub to application/epub+zip for consistency
+    if (type && type.mime === "application/epub") {
+      type.mime = TYPE_EPUB
+      console.log('Second validation - Converted type.mime from application/epub to:', TYPE_EPUB)
+    }
+    
+    const isValidTypeMime = type && allowedTypes.includes(type.mime)
+    const isValidMimetype = allowedTypes.includes(mimetype)
+    
+    console.log('Second validation - Is valid type.mime:', isValidTypeMime)
+    console.log('Second validation - Is valid mimetype:', isValidMimetype)
+    console.log('Second validation - Final type.mime:', type ? type.mime : 'null')
+    console.log('Second validation - Final mimetype:', mimetype)
+    
+    if (!isValidTypeMime && !isValidMimetype) {
+      console.error('Second validation - Invalid file type detected')
       flash(ctx, {
         message: 'Uploaded file is of an invalid type: ' + ctx.request.file.originalname + ' (' + (type? type.mime : 'unknown mimetype') + ')',
         success: false,
@@ -575,18 +607,28 @@ app.use(serve("static"))
 app.use(router.routes())
 app.use(router.allowedMethods())
 
-
-fs.rm('uploads', {recursive: true}, (err) => {
-  if (err) throw err
-  mkdirp('uploads').then (() => {
-    // app.listen(port)
-    const fn = app.callback()
-    const server = http.createServer(fn)
-    server.on('checkContinue', (req, res) => {
-      console.log("check continue!")
-      fn(req, res)
+fs.access('uploads', (accessErr) => {
+  const setupServer = () => {
+    mkdirp('uploads').then(() => {
+      const fn = app.callback()
+      const server = http.createServer(fn)
+      server.on('checkContinue', (req, res) => {
+        console.log("check continue!")
+        fn(req, res)
+      })
+      server.listen(port)
+      console.log('server is listening on port ' + port)
     })
-    server.listen(port)
-    console.log('server is listening on port ' + port)
-  })
+  }
+
+  if (accessErr) {
+    // Directory doesn't exist, just create it
+    setupServer()
+  } else {
+    // Directory exists, remove it first then recreate
+    fs.rm('uploads', { recursive: true }, (err) => {
+      if (err) throw err
+      setupServer()
+    })
+  }
 })
