@@ -1,8 +1,23 @@
 # node 20 is lts at the time of writing
-FROM node:lts-alpine
+FROM docker.io/library/node:lts-alpine AS build
 
 # Create app directory
 WORKDIR /usr/src/app
+
+RUN apk add --no-cache pipx gcc g++ make pkgconf python3-dev
+
+ENV PATH="$PATH:/root/.local/bin"
+
+RUN pipx install pdfCropMargins
+
+FROM docker.io/library/node:lts-alpine as runtime
+
+# Copy pdfCropMargins install
+COPY --from=build /root/.local /root/.local
+
+RUN apk add --no-cache python3
+
+ENV PATH="$PATH:/root/.local/bin"
 
 # Download and install kepubify
 RUN wget https://github.com/pgaskin/kepubify/releases/download/v4.0.4/kepubify-linux-64bit && \
@@ -17,12 +32,6 @@ RUN wget https://github.com/zzet/fp-docker/raw/f2b41fb0af6bb903afd0e429d5487acc6
     cp kindlegen/kindlegen /usr/local/bin/kindlegen && \
     chmod +x /usr/local/bin/kindlegen && \
     rm -rf kindlegen
-
-RUN apk add --no-cache pipx
-
-ENV PATH="$PATH:/root/.local/bin"
-
-RUN pipx install pdfCropMargins
 
 # Copy files needed by npm install
 COPY package*.json ./
