@@ -307,7 +307,11 @@ router.post('/upload', async (ctx, next) => {
     }
 
     let data = null
-    filename = ctx.request.file.originalname
+    try {
+      filename = decodeURIComponent(ctx.request.file.originalname)
+    } catch (e) {
+      filename = ctx.request.file.originalname
+    }
     if (ctx.request.body.transliteration) {
       filename = sanitize(doTransliterate(filename))
     }
