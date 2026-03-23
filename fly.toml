@@ -1,23 +1,16 @@
-# fly.toml app configuration file generated for send2ereader-ypuk2a on 2026-03-23T01:36:56Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
-app = 'send2ereader-ab'
-primary_region = 'yyz'
+app = "send2ereader-ab"
+primary_region = "yyz"
 
 [build]
 
 [http_service]
   internal_port = 3001
   force_https = true
-  auto_stop_machines = 'stop'
+  auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 0
-  processes = ['app']
 
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
+  memory = "512mb"
+  cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
