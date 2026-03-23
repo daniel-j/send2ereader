@@ -576,7 +576,7 @@ app.use(router.routes())
 app.use(router.allowedMethods())
 
 
-fs.rm('uploads', {recursive: true}, (err) => {
+fs.rm('uploads', {recursive: true, force: true}, (err) => {
   if (err) throw err
   mkdirp('uploads').then (() => {
     // app.listen(port)
