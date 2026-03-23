@@ -3,7 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'send2ereader-ypuk2a'
+app = 'send2ereader-ab'
 primary_region = 'yyz'
 
 [build]
