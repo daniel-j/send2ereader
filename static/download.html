@@ -4,8 +4,8 @@
 	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="./style.css?s"/>
-	<script src="./common.js?a"></script>
+	<link rel="stylesheet" type="text/css" href="./style.css?s2"/>
+	<script src="./common.js?b"></script>
 </head>
 <body>
 
@@ -28,7 +28,7 @@
 		<div id="downloads">
 			<br/>
 			<div style="font-size: 1.3em;"><em>Downloads</em></div>
-			<a id="downloadlink" class="downloadlink"></a>
+			<div id="downloadlinks"></div>
 		</div>
 		<div id="urls"></div>
 		<br/>
@@ -39,7 +39,7 @@
 		Visit this on other devices to send ebooks to this ereader:<br/><a id="siteurl">https://send.djazz.se</a><br/>
 		<br/>
 		Created by djazz. Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a><br/>
-		Last updated: 2024-10-20<br/>
+		Last updated: 2026-09-15<br/>
 	</div>
 </div>
 
@@ -50,16 +50,52 @@
 var keyOutput = document.getElementById('keyoutput')
 var keyGenBtn = document.getElementById('keygen')
 var downloads = document.getElementById('downloads')
-var downloadlink = document.getElementById('downloadlink')
+var downloadlinks = document.getElementById('downloadlinks')
 var urlsnode = document.getElementById('urls')
 var siteurl = document.getElementById('siteurl')
 var key = null
 var pollTimer = null
+var lastSig = ''
+
+function clearFiles () {
+	lastSig = ''
+	downloads.style.display = 'none'
+}
+
+// Called every 5 seconds. Rebuilding the links when nothing changed causes a
+// full-page repaint on e-ink and can swallow a tap that lands mid-rebuild.
+function renderFiles (files) {
+	if (!files || files.length === 0) {
+		clearFiles()
+		return
+	}
+	var sig = ''
+	var i
+	for (i = 0; i < files.length; i++) {
+		sig += files[i].name + '\n'
+	}
+	if (sig === lastSig) return
+	lastSig = sig
+
+	while (downloadlinks.firstChild) {
+		downloadlinks.removeChild(downloadlinks.firstChild)
+	}
+	for (i = 0; i < files.length; i++) {
+		var link = document.createElement('a')
+		link.className = 'downloadlink'
+		link.textContent = files[i].name
+		link.href = '/' + encodeURIComponent(files[i].name) + "?key=" + key
+		var div = document.createElement('div')
+		div.appendChild(link)
+		downloadlinks.appendChild(div)
+	}
+	downloads.style.display = 'block'
+}
 
 function pollFile () {
 	if (!key) {
 		keyOutput.textContent = '––––'
-		downloads.style.display = 'none'
+		clearFiles()
 		return
 	}
 	xhr('GET', './status/' + key, function (x) {
@@ -69,23 +105,18 @@ function pollFile () {
 		} catch (err) {
 			key = null
 			keyOutput.textContent = '––––'
-			downloads.style.display = 'none'
+			clearFiles()
 			return
 		}
 		if (data.error) {
 			if (pollTimer) clearInterval(pollTimer)
 			key = null
 			keyOutput.textContent = '––––'
-			downloads.style.display = 'none'
+			clearFiles()
 		}
 		var urls = data.urls && data.urls.length > 0 ? data.urls : null
-		if (data.file) {
-			downloads.style.display = 'block'
-			downloadlink.textContent = data.file.name
-			downloadlink.href = '/' + encodeURIComponent(data.file.name) + "?key=" + key
-		} else {
-			downloads.style.display = 'none'
-		}
+		// data.file is the fallback for an older server that sends only one file
+		renderFiles(data.files || (data.file ? [data.file] : null))
 		if (urls) {
 			urlsnode.innerHTML = '<br/><div style="font-size: 1.3em;"><em>Urls</em></div>'
 			urls.forEach(function (url) {
@@ -105,18 +136,16 @@ function pollFile () {
 function generateKey () {
 	keyOutput.textContent = '––––'
 	if (pollTimer) clearInterval(pollTimer)
-	downloads.style.display = 'none'
+	clearFiles()
 	xhr('POST', './generate', function (x) {
 		if (x.responseText !== 'error' && x.status === 200) {
 			key = x.responseText
 			keyOutput.textContent = key
-			downloadlink.href = ''
 			if (pollTimer) clearInterval(pollTimer)
 			pollTimer = setInterval(pollFile, 5 * 1000)
 		} else {
 			key = null
 			keyOutput.textContent = '––––'
-			downloadlink.href = ''
 		}
 		keyGenBtn.blur()
 	})
