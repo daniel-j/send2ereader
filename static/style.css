@@ -50,8 +50,8 @@ h1 {
     margin-right: -2em;
     padding: 1em;
 }
-#keygen:focus, #downloadlink:focus, #choosebtn:focus, input[type="submit"]:focus,
-#keygen:active, #downloadlink:active, #choosebtn:active, input[type="submit"]:active {
+#keygen:focus, .downloadlink:focus, #choosebtn:focus, input[type="submit"]:focus,
+#keygen:active, .downloadlink:active, #choosebtn:active, input[type="submit"]:active {
     background: black;
     color: white;
 }
@@ -62,6 +62,8 @@ h1 {
 }
 .downloadlink {
     margin: 0.5em;
+    max-width: 100%;
+    word-break: break-all;
 }
 #downloads {
     display: none;
@@ -121,5 +123,9 @@ td.aligntop {
 #fileinfo {
     font-size: 0.9em;
     font-style: italic;
-    width: 18em;
+    width: 20em;
+    max-width: 100%;
+    max-height: 12em;
+    overflow-y: auto;
+    word-wrap: break-word;
 }

@@ -19,7 +19,13 @@ const sanitize = require('sanitize-filename')
 const port = 3001
 const expireDelay = 30  // 30 seconds
 const maxExpireDuration = 1 * 60 * 60  // 1 hour
-const maxFileSize = 1024 * 1024 * 800  // 800 MB
+const maxFileSize = 1024 * 1024 * 500  // 500 MB per individual file
+const maxBatchBytes = 1024 * 1024 * 500  // 500 MB total per upload request
+const maxKeyBytes = 1024 * 1024 * 500  // 500 MB accumulated per key (files append)
+const maxFilesPerBatch = 20  // per upload request
+const maxFilesPerKey = 20  // accumulated per key
+const multipartOverhead = 1024 * 1024  // slack for multipart boundaries and text fields
+const requestTimeout = 30 * 60 * 1000  // 30 minutes to receive a whole upload
 
 const TYPE_EPUB = 'application/epub+zip'
 const TYPE_MOBI = 'application/x-mobipocket-ebook'
@@ -48,40 +54,86 @@ function randomKey () {
   }).join('')
 }
 
-function removeKey (key) {
-  console.log('Removing expired key', key)
-  const info = app.context.keys.get(key)
-  if (info) {
-    clearTimeout(app.context.keys.get(key).timer)
-    if (info.file) {
-      console.log('Deleting file', info.file.path)
-      fs.unlink(info.file.path, (err) => {
-        if (err) console.error(err)
-      })
-      info.file = null
-    }
-    app.context.keys.delete(key)
-  } else {
-    console.log('Tried to remove non-existing key', key)
+function unlinkQuiet (path) {
+  if (!path) return
+  fs.unlink(path, (err) => {
+    if (err && err.code !== 'ENOENT') console.error(err)
+    else if (!err) console.log('Removed file', path)
+  })
+}
+
+function formatMB (bytes) {
+  return Math.round(bytes / (1024 * 1024)) + ' MB'
+}
+
+function escapeHtml (str) {
+  return String(str).replace(/[&<>"]/g, (chr) => {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[chr]
+  })
+}
+
+// Splits a filename into [base, extension], keeping the .kepub.epub double
+// extension together so dedupe produces book_2.kepub.epub, not book.kepub_2.epub
+function splitName (name) {
+  const match = /\.kepub\.epub$/i.exec(name)
+  if (match) return [name.slice(0, match.index), name.slice(match.index)]
+  const ext = extname(name)
+  return [name.slice(0, name.length - ext.length), ext]
+}
+
+// downloadFile matches purely by name, so two files sharing one would leave the
+// second permanently unreachable. Underscore rather than " (2)" because the
+// Kindle filename sanitizer below strips spaces but keeps parentheses.
+function uniqueName (info, desired) {
+  if (!info.files.some((file) => file.name === desired)) return desired
+  const [base, ext] = splitName(desired)
+  for (let n = 2; n < 100; n++) {
+    const candidate = base + '_' + n + ext
+    if (!info.files.some((file) => file.name === candidate)) return candidate
   }
+  return base + '_' + Math.floor(Math.random() * 1E6) + ext
+}
+
+function removeKey (key) {
+  const info = app.context.keys.get(key)
+  if (!info) {
+    console.log('Tried to remove non-existing key', key)
+    return
+  }
+  if (info.busy > 0) {
+    // An upload is mid-batch: don't unlink files out from under it. It will call
+    // removeKey again once it's done.
+    console.log('Key', key, 'is busy, postponing removal')
+    info.pendingRemoval = true
+    clearTimeout(info.timer)
+    info.timer = setTimeout(removeKey, 5 * 1000, key)
+    return
+  }
+  console.log('Removing expired key', key)
+  clearTimeout(info.timer)
+  for (const file of info.files) {
+    console.log('Deleting file', file.path)
+    unlinkQuiet(file.path)
+  }
+  info.files = []
+  info.bytes = 0
+  app.context.keys.delete(key)
 }
 
 function expireKey (key) {
   // console.log('key', key, 'will expire in', expireDelay, 'seconds')
   const info = app.context.keys.get(key)
-  const timer = setTimeout(removeKey, expireDelay * 1000, key)
-  if (info) {
-    clearTimeout(info.timer)
-    info.timer = timer
-    info.alive = new Date()
-  }
-  return timer
+  if (!info) return null
+  clearTimeout(info.timer)
+  info.timer = setTimeout(removeKey, expireDelay * 1000, key)
+  info.alive = new Date()
+  return info.timer
 }
 
 function flash (ctx, data) {
   console.log(data)
   //ctx.cookies.set('flash', encodeURIComponent(JSON.stringify(data)), {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: 10 * 1000})
-  ctx.response.status = data.success ? 200 : 400
+  ctx.response.status = data.status || (data.success ? 200 : 400)
   if (!data.success) {
     ctx.set("Connection", "close")
   }
@@ -106,7 +158,7 @@ const upload = multer({
   }),
   limits: {
     fileSize: maxFileSize,
-    files: 1
+    files: maxFilesPerBatch
   },
   fileFilter: (req, file, cb) => {
     // Fixes charset
@@ -114,7 +166,9 @@ const upload = multer({
     file.originalname = sanitize(Buffer.from(file.originalname, 'latin1').toString('utf8'))
 
     console.log('Incoming file:', file)
-    const key = req.body.key.toUpperCase()
+    // req.body is only populated from parts already parsed, so this relies on the
+    // key field coming before the file fields in the form.
+    const key = String(req.body.key || '').toUpperCase()
     if (!app.context.keys.has(key)) {
       console.error('FileFilter: Unknown key: ' + key)
       cb("Unknown key " + key, false)
@@ -128,6 +182,32 @@ const upload = multer({
     cb(null, true)
   }
 })
+
+// On the rejection path @koa/multer never copies the files onto ctx.request, so
+// check both locations before giving up on cleaning the temp files.
+function cleanupRequestFiles (ctx) {
+  const files = ctx.request.files || ctx.req.files || []
+  for (const file of files) {
+    unlinkQuiet(file.path)
+  }
+  const single = ctx.request.file || ctx.req.file
+  if (single) unlinkQuiet(single.path)
+}
+
+function multerError (err) {
+  switch (err && err.code) {
+    case 'LIMIT_FILE_SIZE':
+      return {success: false, status: 413, message: 'A file exceeds the ' + formatMB(maxFileSize) + ' per-file limit.'}
+    case 'LIMIT_FILE_COUNT':
+      return {success: false, status: 413, message: 'Too many files — maximum ' + maxFilesPerBatch + ' per upload.'}
+    case 'LIMIT_UNEXPECTED_FILE':
+      return {success: false, message: 'Unexpected file field: ' + err.field}
+    default:
+      // Errors raised by fileFilter arrive as plain strings. Never pass an Error
+      // object through: Koa JSON-serializes it and the client receives "{}".
+      return {success: false, message: err && err.message ? err.message : String(err)}
+  }
+}
 
 router.post('/generate', async ctx => {
   const agent = ctx.get('user-agent')
@@ -151,7 +231,11 @@ router.post('/generate', async ctx => {
   const info = {
     created: new Date(),
     agent: agent,
-    file: null,
+    files: [],       // [{name, path, size, conversion, uploaded}]
+    bytes: 0,        // total size on disk of the stored (post-conversion) files
+    busy: 0,         // number of /upload handlers currently writing to this key
+    pendingRemoval: false,
+    lock: Promise.resolve(),  // serializes uploads to this key
     urls: []
   }
   ctx.keys.set(key, info)
@@ -176,12 +260,12 @@ router.get('/download/:key', async ctx => {
 
   const info = ctx.keys.get(key)
 
-  if (!info || !info.file) {
+  if (!info || info.files.length === 0) {
     await next()
     return
   }
 
-  ctx.redirect('/' + encodeURIComponent(info.file.name));
+  ctx.redirect('/' + encodeURIComponent(info.files[0].name));
 })
 */
 
@@ -192,10 +276,19 @@ async function downloadFile (ctx, next) {
     return
   }
 
-  const filename = decodeURIComponent(ctx.params.filename)
+  // @koa/router already decodes ctx.params, decoding again throws URIError on
+  // any name containing a literal % (which sanitize-filename permits).
+  const filename = ctx.params.filename
   const info = ctx.keys.get(key)
 
-  if (!info || !info.file || info.file.name !== filename) {
+  if (!info) {
+    await next()
+    return
+  }
+
+  const file = info.files.find((entry) => entry.name === filename)
+
+  if (!file) {
     await next()
     return
   }
@@ -204,85 +297,34 @@ async function downloadFile (ctx, next) {
     return
   }
   expireKey(key)
-  console.log('Sending file', [info.file.path, info.file.name])
+  console.log('Sending file', [file.path, file.name])
   if (info.agent.includes('Kindle')) {
     // Kindle needs a safe name or it thinks it's an invalid file
-    ctx.attachment(info.file.name)
+    ctx.attachment(file.name)
   }
-  await sendfile(ctx, info.file.path)
+  await sendfile(ctx, file.path)
 }
 
-router.post('/upload', async (ctx, next) => {
-
+/**
+ * Validates and converts a single uploaded file. Consumes file.path: on every
+ * return path the temporary input is either unlinked or is the returned path.
+ *
+ * @param {object} file one multer file ({path, originalname, mimetype, size})
+ * @param {object} info the key info object (agent decides the conversion)
+ * @param {object} body the parsed form fields (conversion checkboxes)
+ * @returns {Promise<{ok: true, originalName: string, name: string, path: string, size: number, conversion: string|null}
+ *                 | {ok: false, originalName: string, error: string}>}
+ */
+async function processUploadedFile (file, info, body) {
   try {
-    await upload.single('file')(ctx, () => {})
-  } catch (err) {
-    flash(ctx, {
-      message: err,
-      success: false
-    })
-    // ctx.throw(400, err)
-    // ctx.res.end(err)
-    await next()
-    return
-  }
-
-  ctx.res.writeContinue()
-
-  const key = ctx.request.body.key.toUpperCase()
-
-  if (ctx.request.file) {
-    console.log('Uploaded file:', ctx.request.file)
-  }
-
-  if (!ctx.keys.has(key)) {
-    flash(ctx, {
-      message: 'Unknown key ' + key,
-      success: false
-    })
-    if (ctx.request.file) {
-      fs.unlink(ctx.request.file.path, (err) => {
-        if (err) console.error(err)
-        else console.log('Removed file', ctx.request.file.path)
-      })
-    }
-    await next()
-    return
-  }
-
-  const info = ctx.keys.get(key)
-  expireKey(key)
-
-  let url = null
-  if (ctx.request.body.url) {
-    url = ctx.request.body.url.trim()
-    if (url.length > 0 && !info.urls.includes(url)) {
-      info.urls.push(url)
-    }
-  }
-
-  let conversion = null
-  let filename = ""
-
-  if (ctx.request.file) {
-    if (ctx.request.file.size === 0) {
-      let data = {
-        message: 'Invalid file submitted (empty file)',
-        success: false,
-        key: key
-      }
-      flash(ctx, data)
-      fs.unlink(ctx.request.file.path, (err) => {
-        if (err) console.error(err)
-        else console.log('Removed file', ctx.request.file.path)
-      })
-      await next()
-      return
+    if (file.size === 0) {
+      unlinkQuiet(file.path)
+      return {ok: false, originalName: file.originalname, error: 'Invalid file submitted (empty file)'}
     }
 
-    let mimetype = ctx.request.file.mimetype
+    let mimetype = file.mimetype
 
-    const type = await FileType.fromFile(ctx.request.file.path)
+    const type = await FileType.fromFile(file.path)
 
     if (mimetype == "application/octet-stream" && type) {
       mimetype = type.mime
@@ -293,61 +335,48 @@ router.post('/upload', async (ctx, next) => {
     }
 
     if ((!type || !allowedTypes.includes(type.mime)) && !allowedTypes.includes(mimetype)) {
-      flash(ctx, {
-        message: 'Uploaded file is of an invalid type: ' + ctx.request.file.originalname + ' (' + (type? type.mime : 'unknown mimetype') + ')',
-        success: false,
-        key: key
-      })
-      fs.unlink(ctx.request.file.path, (err) => {
-        if (err) console.error(err)
-        else console.log('Removed file', ctx.request.file.path)
-      })
-      await next()
-      return
+      unlinkQuiet(file.path)
+      return {
+        ok: false,
+        originalName: file.originalname,
+        error: 'Uploaded file is of an invalid type (' + (type ? type.mime : 'unknown mimetype') + ')'
+      }
     }
 
     let data = null
-    filename = ctx.request.file.originalname
-    if (ctx.request.body.transliteration) {
+    let conversion = null
+    let filename = file.originalname
+    if (body.transliteration) {
       filename = sanitize(doTransliterate(filename))
     }
     if (info.agent.includes('Kindle')) {
       filename = filename.replace(/[^\.\w\-"'\(\)]/g, '_')
     }
 
-    if (mimetype === TYPE_EPUB && info.agent.includes('Kindle') && ctx.request.body.kindlegen) {
+    if (mimetype === TYPE_EPUB && info.agent.includes('Kindle') && body.kindlegen) {
       // convert to .mobi
       conversion = 'kindlegen'
-      const outname = ctx.request.file.path.replace(/\.epub$/i, '.mobi')
+      const outname = file.path.replace(/\.epub$/i, '.mobi')
+      const mobi8name = file.path.replace(/\.epub$/i, '.mobi8')
       filename = filename.replace(/\.kepub\.epub$/i, '.epub').replace(/\.epub$/i, '.mobi')
       let stderr = ''
 
       let p = new Promise((resolve, reject) => {
-        const kindlegen = spawn('kindlegen', [basename(ctx.request.file.path), '-dont_append_source', '-c1', '-o', basename(outname)], {
+        const kindlegen = spawn('kindlegen', [basename(file.path), '-dont_append_source', '-c1', '-o', basename(outname)], {
           // stdio: 'inherit',
-          cwd: dirname(ctx.request.file.path)
+          cwd: dirname(file.path)
         })
         kindlegen.once('error', function (err) {
-          fs.unlink(ctx.request.file.path, (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path)
-          })
-          fs.unlink(ctx.request.file.path.replace(/\.epub$/i, '.mobi8'), (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path.replace(/\.epub$/i, '.mobi8'))
-          })
+          unlinkQuiet(file.path)
+          unlinkQuiet(mobi8name)
+          unlinkQuiet(outname)
           reject('kindlegen error: ' + err)
         })
         kindlegen.once('close', (code) => {
-          fs.unlink(ctx.request.file.path, (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path)
-          })
-          fs.unlink(ctx.request.file.path.replace(/\.epub$/i, '.mobi8'), (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path.replace(/\.epub$/i, '.mobi8'))
-          })
+          unlinkQuiet(file.path)
+          unlinkQuiet(mobi8name)
           if (code !== 0 && code !== 1) {
+            unlinkQuiet(outname)
             reject('kindlegen error code: ' + code + '\n' + stderr)
             return
           }
@@ -366,38 +395,34 @@ router.post('/upload', async (ctx, next) => {
       try {
         data = await p
       } catch (err) {
-        flash(ctx, {
-          success: false,
-          message: err.replaceAll(basename(ctx.request.file.path), "infile.epub").replaceAll(basename(outname), "outfile.mobi")
-        })
-        return
+        return {
+          ok: false,
+          originalName: file.originalname,
+          error: String(err).replaceAll(basename(file.path), "infile.epub").replaceAll(basename(outname), "outfile.mobi")
+        }
       }
 
-    } else if (mimetype === TYPE_EPUB && info.agent.includes('Kobo') && ctx.request.body.kepubify) {
+    } else if (mimetype === TYPE_EPUB && info.agent.includes('Kobo') && body.kepubify) {
       // convert to Kobo EPUB
       conversion = 'kepubify'
-      const outname = ctx.request.file.path.replace(/\.epub$/i, '.kepub.epub')
+      const outname = file.path.replace(/\.epub$/i, '.kepub.epub')
       filename = filename.replace(/\.kepub\.epub$/i, '.epub').replace(/\.epub$/i, '.kepub.epub')
 
       let p = new Promise((resolve, reject) => {
         let stderr = ''
-        const kepubify = spawn('kepubify', ['-v', '-u', '-o', basename(outname), basename(ctx.request.file.path)], {
+        const kepubify = spawn('kepubify', ['-v', '-u', '-o', basename(outname), basename(file.path)], {
           //stdio: 'inherit',
-          cwd: dirname(ctx.request.file.path)
+          cwd: dirname(file.path)
         })
         kepubify.once('error', function (err) {
-          fs.unlink(ctx.request.file.path, (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path)
-          })
+          unlinkQuiet(file.path)
+          unlinkQuiet(outname)
           reject('kepubify error: ' + err)
         })
         kepubify.once('close', (code) => {
-          fs.unlink(ctx.request.file.path, (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path)
-          })
+          unlinkQuiet(file.path)
           if (code !== 0) {
+            unlinkQuiet(outname)
             reject('Kepubify error code: ' + code + '\n' + stderr)
             return
           }
@@ -416,36 +441,33 @@ router.post('/upload', async (ctx, next) => {
       try {
         data = await p
       } catch (err) {
-        flash(ctx, {
-          success: false,
-          message: err.replaceAll(basename(ctx.request.file.path), "infile.epub").replaceAll(basename(outname), "outfile.kepub.epub")
-        })
-        return
+        return {
+          ok: false,
+          originalName: file.originalname,
+          error: String(err).replaceAll(basename(file.path), "infile.epub").replaceAll(basename(outname), "outfile.kepub.epub")
+        }
       }
 
-    } else if (mimetype == 'application/pdf' && ctx.request.body.pdfcropmargins) {
-      const dir = dirname(ctx.request.file.path)
-      const base = basename(ctx.request.file.path, '.pdf')
+    } else if (mimetype == 'application/pdf' && body.pdfcropmargins) {
+      conversion = 'pdfcropmargins'
+      const dir = dirname(file.path)
+      const base = basename(file.path, '.pdf')
       const outfile = resolvepath(join(dir, `${base}_cropped.pdf`))
       let p = new Promise((resolve, reject) => {
         let stderr = ''
-        const pdfcropmargins = spawn('pdfcropmargins', ['-s', '-u', '-o', outfile, basename(ctx.request.file.path)], {
+        const pdfcropmargins = spawn('pdfcropmargins', ['-s', '-u', '-o', outfile, basename(file.path)], {
           // stdio: 'inherit',
-          cwd: dirname(ctx.request.file.path)
+          cwd: dirname(file.path)
         })
         pdfcropmargins.once('error', function (err) {
-          fs.unlink(ctx.request.file.path, (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path)
-          })
+          unlinkQuiet(file.path)
+          unlinkQuiet(outfile)
           reject('pdfcropmargins error: ' + err)
         })
         pdfcropmargins.once('close', (code) => {
-          fs.unlink(ctx.request.file.path, (err) => {
-            if (err) console.error(err)
-            else console.log('Removed file', ctx.request.file.path)
-          })
+          unlinkQuiet(file.path)
           if (code !== 0) {
+            unlinkQuiet(outfile)
             reject('pdfcropmargins error code: ' + code + '\n' + stderr)
             return
           }
@@ -464,40 +486,212 @@ router.post('/upload', async (ctx, next) => {
       try {
         data = await p
       } catch (err) {
-        flash(ctx, {
-          success: false,
-          message: err.replaceAll(basename(ctx.request.file.path), "infile.pdf").replaceAll(outfile, "outfile.pdf")
-        })
-        return
+        return {
+          ok: false,
+          originalName: file.originalname,
+          error: String(err).replaceAll(basename(file.path), "infile.pdf").replaceAll(outfile, "outfile.pdf")
+        }
       }
 
     } else {
       // No conversion
-      data = ctx.request.file.path
-      filename = filename.replace(/\.epub$/i, '.epub').replace(/\.pdf$/i, '.pdf')
+      data = file.path
     }
 
-    expireKey(key)
-    if (info.file && info.file.path) {
-      await new Promise((resolve, reject) => fs.unlink(info.file.path, (err) => {
-        if (err) return reject(err)
-        else console.log('Removed previously uploaded file', info.file.path)
-        resolve()
-      }))
+    let size = 0
+    try {
+      size = (await fs.promises.stat(data)).size
+    } catch (err) {
+      unlinkQuiet(data)
+      return {ok: false, originalName: file.originalname, error: 'Conversion produced no output file'}
     }
-    info.file = {
-      name: filename,
-      path: data,
-      // size: ctx.request.file.size,
-      uploaded: new Date()
+
+    return {ok: true, originalName: file.originalname, name: filename, path: data, size: size, conversion: conversion}
+
+  } catch (err) {
+    // Degrade one file rather than throwing out of the batch and orphaning the rest
+    console.error(err)
+    unlinkQuiet(file.path)
+    return {
+      ok: false,
+      originalName: file.originalname,
+      error: 'Unexpected error: ' + (err && err.message ? err.message : String(err))
+    }
+  }
+}
+
+/**
+ * Converts and stores a batch of files under one key. Runs under the key's lock
+ * so the storage caps and the dedupe check are read-modify-write safe.
+ *
+ * Conversions run one at a time on purpose: kindlegen, kepubify and
+ * pdfcropmargins each spawn a real process, and 20 concurrent ones would put
+ * the OOM killer in charge. They are single-threaded and CPU bound, so running
+ * them in parallel buys little anyway.
+ */
+async function storeBatch (key, info, body, files) {
+  const results = []
+  let remainingSlots = maxFilesPerKey - info.files.length
+  let remainingBytes = maxKeyBytes - info.bytes
+  let aborted = null
+
+  info.busy++
+  try {
+    for (const file of files) {
+      if (aborted) {
+        unlinkQuiet(file.path)
+        results.push({ok: false, originalName: file.originalname, error: aborted})
+        continue
+      }
+
+      if (remainingSlots <= 0 || file.size > remainingBytes) {
+        unlinkQuiet(file.path)
+        results.push({
+          ok: false,
+          originalName: file.originalname,
+          error: 'Storage limit for this key reached (max ' + maxFilesPerKey + ' files / ' + formatMB(maxKeyBytes) + '). Download the waiting files or let the key expire first.'
+        })
+        continue
+      }
+
+      // Keep the key alive across a long conversion even if the ereader has
+      // stopped polling (screen asleep, wifi dropped).
+      expireKey(key)
+      const result = await processUploadedFile(file, info, body)
+      expireKey(key)
+
+      if (!result.ok) {
+        results.push(result)
+        continue
+      }
+
+      if (app.context.keys.get(key) !== info) {
+        // The key expired or was regenerated while we were converting. Anything
+        // we store now would be unreachable and never cleaned up.
+        unlinkQuiet(result.path)
+        aborted = 'Key ' + key + ' expired during upload'
+        results.push({ok: false, originalName: result.originalName, error: aborted})
+        continue
+      }
+
+      result.name = uniqueName(info, result.name)
+      info.files.push({
+        name: result.name,
+        path: result.path,
+        size: result.size,
+        conversion: result.conversion,
+        uploaded: new Date()
+      })
+      // Charged against the output size: the input is gone once converted, and
+      // a .mobi is routinely larger than the .epub it came from.
+      info.bytes += result.size
+      remainingSlots--
+      remainingBytes -= result.size
+      results.push(result)
+    }
+  } finally {
+    info.busy--
+    if (info.pendingRemoval && info.busy === 0) removeKey(key)
+  }
+
+  return results
+}
+
+router.post('/upload', async (ctx, next) => {
+
+  // Reject an oversized batch before multer writes a single byte to disk. Not
+  // calling writeContinue() here is deliberate: a client that sent
+  // Expect: 100-continue (curl does, for large bodies) then aborts without
+  // transmitting the body at all.
+  const declared = Number(ctx.request.headers['content-length'])
+  if (Number.isFinite(declared) && declared > maxBatchBytes + multipartOverhead) {
+    flash(ctx, {
+      success: false,
+      status: 413,
+      message: 'Upload too large: ' + formatMB(declared) + '. The limit is ' + formatMB(maxBatchBytes) + ' per upload.'
+    })
+    return
+  }
+
+  try {
+    await upload.array('file', maxFilesPerBatch)(ctx, () => {})
+  } catch (err) {
+    cleanupRequestFiles(ctx)
+    flash(ctx, multerError(err))
+    await next()
+    return
+  }
+
+  ctx.res.writeContinue()
+
+  const body = ctx.request.body || {}
+  const key = String(body.key || '').toUpperCase()
+  const files = ctx.request.files || []
+
+  if (files.length > 0) {
+    console.log('Uploaded files:', files.map((file) => file.originalname))
+  }
+
+  if (!ctx.keys.has(key)) {
+    flash(ctx, {
+      message: 'Unknown key ' + key,
+      success: false
+    })
+    for (const file of files) {
+      unlinkQuiet(file.path)
+    }
+    await next()
+    return
+  }
+
+  const info = ctx.keys.get(key)
+  expireKey(key)
+
+  let url = null
+  if (body.url) {
+    url = body.url.trim()
+    if (url.length > 0 && !info.urls.includes(url)) {
+      info.urls.push(url)
     }
   }
 
+  // Backstop for a chunked request, which carries no content-length to precheck
+  const batchBytes = files.reduce((sum, file) => sum + file.size, 0)
+  if (batchBytes > maxBatchBytes) {
+    for (const file of files) {
+      unlinkQuiet(file.path)
+    }
+    flash(ctx, {
+      success: false,
+      status: 413,
+      message: 'Upload too large: ' + formatMB(batchBytes) + '. The limit is ' + formatMB(maxBatchBytes) + ' per upload.'
+    })
+    await next()
+    return
+  }
+
+  // Serialize per key so two tabs can't both read info.bytes before either writes
+  const batch = info.lock.catch(() => {}).then(() => storeBatch(key, info, body, files))
+  info.lock = batch.catch(() => {})
+  const results = await batch
+
+  for (const file of files) {
+    file.skip = true
+  }
+
+  const succeeded = results.filter((result) => result.ok)
+  const failed = results.filter((result) => !result.ok)
+  const device = info.agent.includes('Kobo') ? 'a Kobo device.' : (info.agent.includes('Kindle') ? 'a Kindle device.' : 'a device.')
+
   let messages = []
-  if (ctx.request.file) {
-    ctx.request.file.skip = true
-    messages.push('Upload successful! ' + (conversion ? 'Ebook was converted with ' + conversion + ' and sent' : 'Sent')+' to '+(info.agent.includes('Kobo') ? 'a Kobo device.' : (info.agent.includes('Kindle') ? 'a Kindle device.' : 'a device.')))
-    messages.push('Filename: ' + filename)
+  if (succeeded.length > 0) {
+    messages.push('Upload successful! Sent ' + succeeded.length + ' file' + (succeeded.length === 1 ? '' : 's') + ' to ' + device)
+    for (const result of succeeded) {
+      messages.push('✓ ' + result.name + (result.conversion ? ' (converted with ' + result.conversion + ')' : ''))
+    }
+  }
+  for (const result of failed) {
+    messages.push('✗ ' + result.originalName + ' — ' + result.error)
   }
   if (url) {
     messages.push("Added url: " + url)
@@ -513,9 +707,17 @@ router.post('/upload', async (ctx, next) => {
     return
   }
 
+  if (files.length > 0) {
+    ctx.set('X-Upload-Result', succeeded.length + '/' + results.length)
+  }
+
+  // Success if anything landed. The client renders a success body as HTML and an
+  // error body as preformatted text, so the separator has to match.
+  const success = succeeded.length > 0 || (failed.length === 0 && !!url)
+
   flash(ctx, {
-    message: messages.join("<br/>"),
-    success: true,
+    message: success ? messages.map(escapeHtml).join('<br/>') : messages.join('\n'),
+    success: success,
     key: key,
     url: url
   })
@@ -529,7 +731,27 @@ router.delete('/file/:key', async ctx => {
   if (!info) {
     ctx.throw(400, 'Unknown key: ' + key)
   }
-  info.file = null
+  for (const file of info.files) {
+    unlinkQuiet(file.path)
+  }
+  info.files = []
+  info.bytes = 0
+  ctx.body = 'ok'
+})
+
+router.delete('/file/:key/:filename', async ctx => {
+  const key = ctx.params.key.toUpperCase()
+  const info = ctx.keys.get(key)
+  if (!info) {
+    ctx.throw(400, 'Unknown key: ' + key)
+  }
+  const index = info.files.findIndex((file) => file.name === ctx.params.filename)
+  if (index === -1) {
+    ctx.throw(404, 'Unknown file: ' + ctx.params.filename)
+  }
+  const [file] = info.files.splice(index, 1)
+  info.bytes = Math.max(0, info.bytes - file.size)
+  unlinkQuiet(file.path)
   ctx.body = 'ok'
 })
 
@@ -550,10 +772,13 @@ router.get('/status/:key', async ctx => {
   // ctx.cookies.set('key', key, {overwrite: true, httpOnly: false, sameSite: 'strict', maxAge: expireDelay * 1000})
   ctx.body = {
     alive: info.alive,
-    file: info.file ? {
-      name: info.file.name,
-      // size: info.file.size
-    } : null,
+    files: info.files.map((file) => ({
+      name: file.name
+      // size: file.size
+    })),
+    // Deprecated, kept for ereaders still running a cached copy of the old
+    // download.html, which reads data.file and knows nothing about data.files.
+    file: info.files.length > 0 ? {name: info.files[info.files.length - 1].name} : null,
     urls: info.urls
   }
 })
@@ -576,7 +801,8 @@ app.use(router.routes())
 app.use(router.allowedMethods())
 
 
-fs.rm('uploads', {recursive: true}, (err) => {
+// force: uploads is gitignored, so it doesn't exist on a fresh checkout
+fs.rm('uploads', {recursive: true, force: true}, (err) => {
   if (err) throw err
   mkdirp('uploads').then (() => {
     // app.listen(port)
@@ -586,6 +812,9 @@ fs.rm('uploads', {recursive: true}, (err) => {
       console.log("check continue!")
       fn(req, res)
     })
+    // Node's 5 minute default is the time allowed to receive the *whole* request,
+    // which a 1 GB upload needs ~28 Mbit/s of upstream to beat.
+    server.requestTimeout = requestTimeout
     server.listen(port)
     console.log('server is listening on port ' + port)
   })

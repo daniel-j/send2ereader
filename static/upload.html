@@ -4,8 +4,8 @@
 	<title>Send to Kobo/Kindle</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="./style.css?o"/>
-	<script src="./common.js"></script>
+	<link rel="stylesheet" type="text/css" href="./style.css?o2"/>
+	<script src="./common.js?b"></script>
 </head>
 <body>
 
@@ -13,8 +13,10 @@
 	<h1 class="center">Send to Kobo/Kindle</h1>
 	<form action="./upload" method="post" enctype="multipart/form-data" id="uploadform">
 		<table style="margin: 0 auto;" cellpadding=0 cellspacing=0>
+			<!-- The key field must stay ABOVE the file field: the server reads the key
+			     while parsing the upload, and only sees form parts sent before the files. -->
 			<tr><td class="right"><label for="keyinput"><strong>Unique key</strong></label></td><td><input type="text" name="key" id="keyinput" autocomplete="off" pattern="...." placeholder="––––" required style="text-transform: uppercase;" maxlength=4/></td></tr>
-			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook file</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose file</label><input type="file" name="file" id="fileinput" accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/epub,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar"/><br/><br/><div id="fileinfo"></div></td></tr>
+			<tr><td class="right aligntop"><label for="fileinput"><strong>Ebook files</strong></label><br/><em>EPUB, MOBI, PDF,<br/>TXT, CBZ, CBR</em></td><td class="aligntop"><label for="fileinput" id="choosebtn">Choose files</label><input type="file" name="file" id="fileinput" multiple accept=".txt,.epub,.mobi,.pdf,.cbz,.cbr,application/epub+zip,application/epub,application/x-mobipocket-ebook,application/pdf,application/vnd.comicbook+zip,application/vnd.comicbook-rar"/><br/><br/><div id="fileinfo"></div></td></tr>
 			<tr><td class="right"><label for="urlinput"><strong>Send url</strong></label></td><td><input type="url" name="url" id="urlinput" autocomplete="off" style="width: 100%"></td></tr>
 			<tr><td class="right"><input type="checkbox" name="kepubify" id="kepubify" checked /></td><td><label for="kepubify"><strong>Kepubify</strong> <em>Kobo only</em></label></td></tr>
 			<tr><td class="right"><input type="checkbox" name="kindlegen" id="kindlegen" checked /></td><td><label for="kindlegen"><strong>KindleGen</strong> <em>Kindle only</em></label></td></tr>
@@ -25,16 +27,17 @@
 		<div id="uploadstatus"></div>
 	</form>
 	<div style="padding: 15px; padding-top: 0; text-align: justify;">
-		<p>Go this this page on your Kobo/Kindle ereader and you see a unique key. Enter it in this form and upload an ebook and it will appear as a download link on the ereader.</p>
+		<p>Go to this page on your Kobo/Kindle ereader and you see a unique key. Enter it in this form and upload one or more ebooks and they will appear as download links on the ereader.</p>
+		<p>You can send up to <strong>20 files, 500 MB in total</strong> per upload. Files add up on the ereader, so you can upload again with the same key to send more, up to 20 files and 500 MB altogether. Note that choosing files again replaces your current selection rather than adding to it.</p>
 		<p>If you send an EPUB file to to a Kindle it will be converted to MOBI with KindleGen. If you send a MOBI file to a Kindle it will be sent unprocessed. Files sent to Kindle eReaders will have their names stripped of special characters, a limitation of the Kindle browser. If you send an EPUB file and tick the Kepubify checkbox, it will be converted into a Kobo EPUB using Kepubify. If you send a MOBI file to a Kobo, it will not be converted.</p>
-		<p>Your ebook will be stored on the server as long as your Kobo/Kindle is viewing the unique key and is connected to wifi. It will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your ereader.</p>
-		<p>By using this tool you agree that the ebook you upload is processed on the server and stored for a short time.</p>
+		<p>Your ebooks will be stored on the server as long as your Kobo/Kindle is viewing the unique key and is connected to wifi. They will be deleted irrevocably when the key expires about 30 seconds after you close the browser, generate a new key or disable wifi on your ereader.</p>
+		<p>By using this tool you agree that the ebooks you upload are processed on the server and stored for a short time.</p>
 	</div>
 	<hr/>
 	<div class="center">
 		Created by djazz. Powered by <a href="https://koajs.com/" target="_blank">Koa</a>, <a href="https://pgaskin.net/kepubify/" target="_blank">Kepubify</a>, <a href="https://www.amazon.com/gp/feature.html?ie=UTF8&docId=1000765211" target="_blank">KindleGen</a> and <a href="https://github.com/abarker/pdfCropMargins" target="_blank">pdfCropMargins</a><br/>
 		Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a> - <a id="siteurl">https://send.djazz.se</a><br/>
-		Last updated: 2024-10-20
+		Last updated: 2026-09-15
 	</div>
 </div>
 
@@ -94,36 +97,68 @@ uploadstatus.addEventListener('click', function () {
 }, false)
 
 
-function fileinputChange () {
-	if (!fileinput.files[0] || fileinput.files.length === 0) {
-		fileinfo.textContent = ''
-		fileinput.value = ''
-		return
-	}
+var MAX_FILES = 20
+// Keep in sync with maxBatchBytes in index.js
+var MAX_TOTAL = 1024 * 1024 * 500
 
-	var filename = fileinput.files[0].name
-	var type = fileinput.files[0].type
-	var found = false
+function isAccepted (filename, type) {
 	for (var i = 0; i < fileinputAccept.length; i++) {
 		var item = fileinputAccept[i]
 		if (item.length > 1 && item[0] == '.') {
 			if (filename.toLowerCase().endsWith(item.toLowerCase())) {
-				found = true
-				break
+				return true
 			}
 		} else if (type == item) {
-			found = true
-			break
+			return true
 		}
 	}
-	if (!found) {
-		alert("Invalid file: " + filename + "\nPlease select another file.")
-		fileinfo.textContent = ''
-		fileinput.value = ''
+	return false
+}
+
+function clearSelection () {
+	fileinfo.textContent = ''
+	fileinput.value = ''
+}
+
+function fileinputChange () {
+	var files = fileinput.files
+	if (!files || files.length === 0) {
+		clearSelection()
 		return
 	}
 
-	fileinfo.innerHTML = filename + "<br/>Filesize: " + Math.ceil(fileinput.files[0].size / 1024) + ' kB'
+	if (files.length > MAX_FILES) {
+		alert("Too many files: " + files.length + ". The maximum is " + MAX_FILES + " per upload.\nYou can upload again with the same key to send more.")
+		clearSelection()
+		return
+	}
+
+	var total = 0
+	var invalid = []
+	var list = ''
+	var i
+	for (i = 0; i < files.length; i++) {
+		if (!isAccepted(files[i].name, files[i].type)) {
+			invalid.push(files[i].name)
+		}
+		total += files[i].size
+		list += escapeHtml(files[i].name) + ' &ndash; ' + Math.ceil(files[i].size / 1024) + ' kB<br/>'
+	}
+
+	if (invalid.length > 0) {
+		alert("Invalid file" + (invalid.length === 1 ? '' : 's') + ":\n" + invalid.join("\n") + "\nPlease select other files.")
+		clearSelection()
+		return
+	}
+
+	if (total > MAX_TOTAL) {
+		alert("Total size is " + Math.round(total / 1048576) + " MB. The limit is " + Math.round(MAX_TOTAL / 1048576) + " MB per upload.\nPlease select fewer files.")
+		clearSelection()
+		return
+	}
+
+	fileinfo.innerHTML = files.length + ' file' + (files.length === 1 ? '' : 's') +
+		', total ' + (Math.round(total / 1048576 * 10) / 10) + ' MB<br/>' + list
 }
 
 fileinput.addEventListener('change', fileinputChange, false)
@@ -138,6 +173,8 @@ uploadform.addEventListener('submit', function (e) {
 	hideUploadStatus()
 	e.preventDefault()
 	var fd = new FormData(uploadform)
+	var count = fileinput.files ? fileinput.files.length : 0
+	var noun = count === 1 ? "file" : count + " files"
 	var req = new XMLHttpRequest()
 	req.open('POST', uploadform.action, true)
 	req.upload.onprogress = function (e) {
@@ -146,7 +183,7 @@ uploadform.addEventListener('submit', function (e) {
 			var complete = e.loaded / e.total == 1
 			handleFlash({
 				success: true,
-				message: !complete ? "Uploading file... " + Math.round(100 * e.loaded / e.total) + '%' : "Processing uploaded file... please wait"
+				message: !complete ? "Uploading " + noun + "... " + Math.round(100 * e.loaded / e.total) + '%' : "Processing " + noun + "... this can take several minutes, please wait"
 			})
 		}
 	}

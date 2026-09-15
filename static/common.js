@@ -21,6 +21,10 @@ function xhr(method, url, cb) {
 	x.send(null)
 }
 
+function escapeHtml(str) {
+	return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 var isIOS = /iPad|iPhone|iPod/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 
 function getCookies() {
